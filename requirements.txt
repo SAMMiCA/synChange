@@ -17,3 +17,6 @@ six==1.14.0
 tensorboardX
 termcolor==1.1.0
 tqdm==4.19.9
+albumentations
+pycocotools
+flow_vis
