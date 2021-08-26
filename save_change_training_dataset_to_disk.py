@@ -15,7 +15,7 @@ import imageio
 from utils.image_transforms import ArrayToTensor
 from utils.io import writeFlow
 import flow_vis
-
+from PIL import Image
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Change Detection Dataset Generation script')
@@ -53,7 +53,8 @@ if __name__ == "__main__":
     img_types = ['ref','query']
     change_names = ['static','new','missing','replaced','rotated']
     change_dirs = {'image':{'ref':{},'query':{}},
-                   'mask':{'ref':{},'query':{}}}
+                   'mask':{'ref':{},'query':{}},
+                   'flow':{}}
 
     for data_type in data_types:
         data_type_dir = os.path.join(save_dir,data_type)
@@ -65,6 +66,12 @@ if __name__ == "__main__":
                 change_dir = os.path.join(img_type_dir,change_name)
                 if not os.path.exists(change_dir): os.makedirs(change_dir)
                 change_dirs[data_type][img_type][change_name] = change_dir
+    for change_name in ('static','rotated'):
+        change_dir = os.path.join(flow_dir, change_name)
+        if not os.path.exists(change_dir): os.makedirs(change_dir)
+        change_dirs['flow'][change_name] = change_dir
+    for change_name in ('missing','new','replaced'):
+        os.system('ln -s '+os.path.join(flow_dir,'static')+' '+os.path.join(flow_dir,change_name))
 
     # datasets
     source_img_transforms = transforms.Compose([ArrayToTensor(get_float=False)])
@@ -80,40 +87,58 @@ if __name__ == "__main__":
                                        get_flow=True,
                                        output_size=(520, 520))
 
-
     for i, minibatch in enumerate(train_dataset):
+        i = i +38439
+        SAVE_SUCCESSFUL = False
+        while SAVE_SUCCESSFUL == False:
+            try:
+                for data_type in data_types:
+                    for img_type in img_types:
+                        for change_name in change_names:
+                            save_data = minibatch[data_type][img_type][change_name]
+                            save_path = change_dirs[data_type][img_type][change_name]
+                            save_filepath = os.path.join(save_path,'{}.png'.format(i))
+                            # print('[{}/{}] saving..{}  shape {}'.format(i,len(train_dataset),save_filepath,save_data.shape))
+                            im = Image.fromarray(save_data.numpy().astype('uint8'))
+                            im.save(save_filepath)
 
-        for data_type in data_types:
-            for img_type in img_types:
-                for change_name in change_names:
-                    save_data = minibatch[data_type][img_type][change_name]
-                    save_path = change_dirs[data_type][img_type][change_name]
-                    save_filepath = os.path.join(save_path,'{}.png'.format(i))
-                    print('[{}/{}] saving..{}  shape {}'.format(i,len(train_dataset),save_filepath,save_data.shape))
-                    imageio.imwrite(save_filepath, save_data.numpy().astype('uint8')) # imageio requires (h,w,3) format
+                for change_name in ('static', 'rotated'):
+                    save_data = minibatch['flow'][change_name]
+                    save_path = change_dirs['flow'][change_name]
+                    # save flow
+                    flow_gt = minibatch['flow'][change_name].permute(1,2,0).numpy() # now shape is HxWx2
+                    # save the flow file and the images files
+                    name_flow = '{}.flo'.format(i)
+                    writeFlow(flow_gt, name_flow, save_path)
 
-        # save flow
-        flow_gt = minibatch['flow_map'].permute(1,2,0).numpy() # now shape is HxWx2
-        # save the flow file and the images files
-        name_flow = '{}.flo'
-        writeFlow(flow_gt, name_flow, flow_dir)
-        idx_mapping = {(0,0):0,(0,1):1,(1,0):2,(1,1):3}
-        # save ref
-        if args.plot:
-            fig, axis = plt.subplots(5, 4, figsize=(20, 20))
-            for dtype_idx, data_type in enumerate(data_types):
-                for img_idx, img_type in enumerate(img_types):
-                    for change_idx,change_name in enumerate(change_names):
-                        save_data = minibatch[data_type][img_type][change_name]
-                        axis[change_idx][idx_mapping[(dtype_idx,img_idx)]].imshow(save_data)
-                        axis[change_idx][idx_mapping[(dtype_idx,img_idx)]].set_title('{}/{}/{}'.format(data_type,img_type,change_name))
-                        axis[change_idx][idx_mapping[(dtype_idx,img_idx)]].axis('off')
+                idx_mapping = {(0,0):0,(0,1):1,(1,0):2,(1,1):3}
+                # save ref
+                if args.plot:
+                    fig, axis = plt.subplots(5, 6, figsize=(20, 20))
+                    for dtype_idx, data_type in enumerate(data_types):
+                        for img_idx, img_type in enumerate(img_types):
+                            for change_idx,change_name in enumerate(change_names):
+                                save_data = minibatch[data_type][img_type][change_name]
+                                axis[change_idx][idx_mapping[(dtype_idx,img_idx)]].imshow(save_data)
+                                axis[change_idx][idx_mapping[(dtype_idx,img_idx)]].set_title('{}/{}/{}'.format(data_type,img_type,change_name))
+                                axis[change_idx][idx_mapping[(dtype_idx,img_idx)]].axis('off')
+                    for change_idx, change_name in enumerate(change_names):
+                        flow_gt = minibatch['flow'][change_name].permute(1, 2, 0).numpy()  # now shape is HxWx2
+                        axis[change_idx][4].imshow(flow_vis.flow_to_color(flow_gt))
+                        axis[change_idx][4].set_title('{}'.format('flow'))
 
-            axis[0][2].imshow(flow_vis.flow_to_color(flow_gt))
-            axis[0][2].set_title('{}'.format('flow'))
-            ref_img = minibatch['image']['ref']['static'].numpy().astype('uint8') # h,w,3
-            remapped_gt = remap_using_flow_fields(ref_img, flow_gt[:, :, 0], flow_gt[:, :, 1])
-            axis[0][3].imshow(remapped_gt)
-            axis[0][3].set_title('{}'.format('Warped ref (w.r.t. GT flow)'))
-            fig.savefig(os.path.join(viz_dir, 'synthetic_pair_{}'.format(i)), bbox_inches='tight')
-            plt.close(fig)
+                        ref_img = minibatch['image']['ref'][change_name].numpy().astype('uint8') # h,w,3
+                        mask = minibatch['mask'] if change_name == 'rotated' else None
+                        remapped_gt = remap_using_flow_fields(ref_img, flow_gt[:, :, 0], flow_gt[:, :, 1],
+                                                              mask=mask)
+                        axis[change_idx][5].imshow(remapped_gt)
+                        axis[change_idx][5].set_title('{}'.format('Warped ref (w.r.t. GT flow)'))
+                    fig.savefig(os.path.join(viz_dir, 'synthetic_pair_{}'.format(i)), bbox_inches='tight')
+                    plt.close(fig)
+
+                SAVE_SUCCESSFUL = True
+
+            except Exception as e:
+                print(e)
+                print('retrying..')
+                pass

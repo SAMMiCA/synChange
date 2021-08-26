@@ -138,8 +138,8 @@ def conv_blck(in_channels, out_channels, kernel_size=3,
                              nn.ReLU(inplace=True))
 
 
-def conv_head(in_channels):
-    return nn.Conv2d(in_channels, 2, kernel_size=3, padding=1)
+def conv_head(in_channels,out_channels=2):
+    return nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
 
 
 class CorrespondenceMapBase(nn.Module):
@@ -160,7 +160,7 @@ class CorrespondenceMapBase(nn.Module):
 
 
 class CMDTop(CorrespondenceMapBase):
-    def __init__(self, in_channels, bn=False):
+    def __init__(self, in_channels, bn=False, out_channels=32):
         super().__init__(in_channels, bn)
         chan = [128, 128, 96, 64, 32]
         self.conv0 = conv_blck(in_channels, chan[0], bn=bn)
@@ -168,13 +168,30 @@ class CMDTop(CorrespondenceMapBase):
         self.conv2 = conv_blck(chan[1], chan[2], bn=bn)
         self.conv3 = conv_blck(chan[2], chan[3], bn=bn)
         self.conv4 = conv_blck(chan[3], chan[4], bn=bn)
-        self.final = conv_head(chan[-1])
+        self.final = conv_head(out_channels)
 
     def forward(self, x1, x2=None, x3=None):
         x = super().forward(x1, x2, x3)
         x = self.conv4(self.conv3(self.conv2(self.conv1(self.conv0(x)))))
         return self.final(x)
 
+class ConvDecoder(CorrespondenceMapBase):
+    def __init__(self, in_channels, bn=False, out_channels=32,inter_channels=[128, 128, 96, 64, 32]):
+        super().__init__(in_channels, bn)
+        chan = inter_channels
+        self.conv0 = conv_blck(in_channels, chan[0], bn=bn)
+        self.conv1 = conv_blck(chan[0], chan[1], bn=bn)
+        self.conv2 = conv_blck(chan[1], chan[2], bn=bn)
+        self.conv3 = conv_blck(chan[2], chan[3], bn=bn)
+        self.conv4 = conv_blck(chan[3], chan[4], bn=bn)
+        self.final = conv_head(in_channels=chan[-1],out_channels=out_channels)
+
+    def forward(self, x1, x2=None, x3=None,mask=None):
+        x = super().forward(x1, x2, x3)
+        if mask is not None:
+            x = x*mask
+        x = self.conv4(self.conv3(self.conv2(self.conv1(self.conv0(x)))))
+        return self.final(x)
 
 def warp(x, flo):
     """
