@@ -14,12 +14,16 @@ import torchvision.transforms as transforms
 import torch.optim.lr_scheduler as lr_scheduler
 from datasets.training_dataset import HomoAffTps_Dataset
 from datasets.load_pre_made_dataset import PreMadeChangeDataset
-from utils_training.optimize_GLUChangeNet import train_epoch, validate_epoch
+from utils_training.optimize_GLUChangeNet import train_epoch, validate_epoch, test_epoch, train_change
 from models.our_models.GLUChangeNet import GLUChangeNet_model
 from utils_training.utils_CNN import load_checkpoint, save_checkpoint, boolean_string
 from tensorboardX import SummaryWriter
 from utils.image_transforms import ArrayToTensor
-
+from datasets.vl_cmu_cd import vl_cmu_cd_eval
+from datasets.pcd import gsv_eval, tsunami_eval
+from datasets.changesim import changesim_eval
+import albumentations as A
+from albumentations.pytorch.transforms import ToTensorV2
 if __name__ == "__main__":
     # Argument parsing
     parser = argparse.ArgumentParser(description='GLU-Net train script')
@@ -33,17 +37,20 @@ if __name__ == "__main__":
                         help='path to directory containing original images for training if --pre_loaded_training_'
                              'dataset is False or containing the synthetic pairs of training images and their '
                              'corresponding flow fields if --pre_loaded_training_dataset is True')
-    parser.add_argument('--evaluation_data_dir', type=str,  default='result3',
+    parser.add_argument('--evaluation_data_dir', type=str,  default='/media/rit/GLU-CHANGE-SSD500/dataset/',
                         help='path to directory containing original images for validation if --pre_loaded_training_'
                              'dataset is False or containing the synthetic pairs of validation images and their '
                              'corresponding flow fields if --pre_loaded_training_dataset is True')
     parser.add_argument('--snapshots', type=str, default='./snapshots')
     parser.add_argument('--pretrained', dest='pretrained',
-                        default='pre_trained_models/GLUNet_DPED_CityScape_ADE.pth',
-                        help='path to pre-trained model')
-    parser.add_argument('--resume', dest='rsume',
-                        #default='pre_trained_models/GLUNet_DPED_CityScape_ADE.pth',
-                       help='path to resume model')
+                        # default='pre_trained_models/GLUNet_DPED_CityScape_ADE.pth',
+                        help='path to pre-trained model (load only model params)')
+    parser.add_argument('--resume', dest='resume',
+                       default='snapshots/2021_09_23_19_17/epoch_11.pth',
+                       help='path to resume model (load both model and optimizer params')
+    parser.add_argument('--multi_class', action='store_true',
+                        help='if true, do multi-class change detection')
+
     # Optimization parameters
     parser.add_argument('--lr', type=float, default=0.0001, help='learning rate')
     parser.add_argument('--momentum', type=float,
@@ -71,86 +78,142 @@ if __name__ == "__main__":
     print(device)
 
     # datasets, pre-processing of the images is done within the network function !
-    source_img_transforms = transforms.Compose([ArrayToTensor(get_float=False)])
-    target_img_transforms = transforms.Compose([ArrayToTensor(get_float=False)])
+    # source_img_transforms = transforms.Compose([ArrayToTensor(get_float=False)])
+    # target_img_transforms = transforms.Compose([ArrayToTensor(get_float=False)])
+    source_img_transforms = A.Compose([
+        A.ColorJitter(p=0.5),
+        A.RandomShadow(shadow_roi=(0,0,1,1), p=0.5),
+        A.OneOf([A.ChannelDropout(p=0.5),
+                 A.ChannelShuffle(p=0.5),
+                 A.ToGray(p=0.5),
+                 A.ToSepia(p=0.5)]),
+        A.OneOf([A.RandomFog(fog_coef_lower=0.1,fog_coef_upper=0.5,p=0.5),
+                A.RandomRain(p=0.5),
+                 A.RandomSnow(p=0.5),
+                 A.RandomSunFlare(src_radius=150,p=0.5)]),
+        A.OneOf([A.Compose([A.CropAndPad(percent=-0.07), A.CropAndPad(percent=0.07)]),
+                 A.Compose([A.CropAndPad(percent=-0.03), A.CropAndPad(percent=0.03)]),
+                 A.Compose([]),
+                 ]),
+        ToTensorV2()])
+    target_img_transforms = A.Compose([
+        A.ColorJitter(p=0.5),
+        A.RandomShadow(shadow_roi=(0,0,1,1), p=0.5),
+        A.OneOf([A.ChannelDropout(p=0.5),
+                 A.ChannelShuffle(p=0.5),
+                 A.ToGray(p=0.5),
+                 A.ToSepia(p=0.5)]),
+        A.OneOf([A.RandomFog(fog_coef_lower=0.1,fog_coef_upper=0.5,p=0.5),
+                A.RandomRain(p=0.5),
+                 A.RandomSnow(p=0.5),
+                 A.RandomSunFlare(src_radius=150,p=0.5)]),
+        A.OneOf([A.Compose([A.CropAndPad(percent=-0.07), A.CropAndPad(percent=0.07)]),
+                 A.Compose([A.CropAndPad(percent=-0.03), A.CropAndPad(percent=0.03)]),
+                 A.Compose([]),
+                 ]),
+        ToTensorV2()])
+    co_transform = A.Compose([
+        A.RandomCrop(height=224,width=320),
+        A.Resize(height=480,width=640)
+    ])
+    # If synthetic pairs were already created and saved to disk, run instead of 'train_dataset' the following.
+    # and replace args.training_data_dir by the root to folders containing images/ and flow/
 
-    if not args.pre_loaded_training_dataset:
-        # training dataset, created on the fly at each epoch
-        pyramid_param = [520] # means that we get the ground-truth flow field at this size
-        train_dataset = HomoAffTps_Dataset(image_path=args.training_data_dir,
-                                           csv_file=osp.join('datasets', 'csv_files',
-                                                         'homo_aff_tps_train_DPED_CityScape_ADE.csv'),
-                                           transforms=source_img_transforms,
-                                           transforms_target=target_img_transforms,
-                                           pyramid_param=pyramid_param,
-                                           get_flow=True,
-                                           output_size=(520, 520))
+    flow_transform = transforms.Compose([ArrayToTensor()]) # just put channels first and put it to float
+    change_transform = transforms.Compose([ArrayToTensor()])
 
-        # validation dataset
-        pyramid_param = [520]
-        val_dataset = HomoAffTps_Dataset(image_path=args.evaluation_data_dir,
-                                         csv_file=osp.join('datasets', 'csv_files',
-                                                           'homo_aff_tps_test_DPED_CityScape_ADE.csv'),
-                                         transforms=source_img_transforms,
-                                         transforms_target=target_img_transforms,
-                                         pyramid_param=pyramid_param,
-                                         get_flow=True,
-                                         output_size=(520, 520))
+    train_dataset, val_dataset = PreMadeChangeDataset(root=args.training_data_dir,
+                                      source_image_transform=source_img_transforms,
+                                      target_image_transform=target_img_transforms,
+                                      flow_transform=flow_transform,
+                                      co_transform=None,
+                                      change_transform=change_transform,
+                                      split=0.5,
+                                      multi_class =args.multi_class)  # train:val = 95:5
+    train_changesim = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
+                                  source_image_transform=source_img_transforms,
+                                  target_image_transform=target_img_transforms,
+                                  change_transform=change_transform,
+                                  multi_class=True,
+                                  mapname='Storage',
+                                  split='*'
+                                  )
+    test_datasets = {}
 
-    else:
-        # If synthetic pairs were already created and saved to disk, run instead of 'train_dataset' the following.
-        # and replace args.training_data_dir by the root to folders containing images/ and flow/
+    test_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
+                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  change_transform=change_transform,
+                                  multi_class=False,
+                                  split='Seq_0'
+                                  )
+    test_datasets['changesim_dark'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
+                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  change_transform=change_transform,
+                                  multi_class=False,
+                                  split='Seq_0_dark'
+                                  )
+    test_datasets['changesim_dust'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
+                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  change_transform=change_transform,
+                                  multi_class=False,
+                                  split='Seq_0_dust'
+                                  )
+    test_datasets['changesim_storage'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
+                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  change_transform=change_transform,
+                                  multi_class=False,
+                                  mapname='Storage',
+                                   split='Seq_0'
+                                  )
+    test_datasets['changesim_fire'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
+                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  change_transform=change_transform,
+                                  multi_class=False,
+                                  split='Seq_0_fire'
+                                  )
+    test_datasets['gsv'] = gsv_eval(root=os.path.join(args.evaluation_data_dir,'GSV'),
+                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  co_transform=co_transform,
+                                  change_transform=change_transform,
+                                  )
 
-        flow_transform = transforms.Compose([ArrayToTensor()]) # just put channels first and put it to float
-        change_transform = transforms.Compose([ArrayToTensor()])
-        train_dataset, val_dataset = PreMadeChangeDataset(root=args.training_data_dir,
-                                          source_image_transform=source_img_transforms,
-                                          target_image_transform=target_img_transforms,
-                                          flow_transform=flow_transform,
-                                          co_transform=None,
-                                          change_transform=change_transform,
-                                          split=0.99)  # train:val = 99:1
-
-        # _, val_dataset = PreMadeDataset(root=args.evaluation_data_dir,
-        #                                 source_image_transform=source_img_transforms,
-        #                                 target_image_transform=target_img_transforms,
-        #                                 flow_transform=flow_transform,
-        #                                 co_transform=None,
-        #                                 split=0)  # only validation
+    test_datasets['tsunami'] = tsunami_eval(root=os.path.join(args.evaluation_data_dir,'TSUNAMI'),
+                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  co_transform=co_transform,
+                                  change_transform=change_transform,
+                                  )
+    # test_datasets['vl_cmu_cd'] = vl_cmu_cd_eval(root=os.path.join(args.evaluation_data_dir,'VL-CMU-CD'),
+    #                               source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               change_transform=change_transform,
+    #                               )
 
     # Dataloader
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=args.batch_size,
                                   shuffle=True,
                                   num_workers=args.n_threads)
+    train_changesim_loader = DataLoader(train_changesim,
+                                  batch_size=args.batch_size,
+                                  shuffle=True,
+                                  num_workers=args.n_threads)
 
     val_dataloader = DataLoader(val_dataset,
                                 batch_size=args.batch_size,
-                                shuffle=False,
+                                shuffle=True,
                                 num_workers=args.n_threads)
 
+    test_dataloaders = {k:DataLoader(test_dataset,batch_size=1,shuffle=False,num_workers=args.n_threads)
+                        for k, test_dataset in test_datasets.items()}
 
     # models
-    '''
-    Default GLU-Net parameters:
-    model = GLUNet_model(batch_norm=True, pyramid_type='VGG',
-                         div=args.div_flow, evaluation=False,
-                         consensus_network=False,
-                         cyclic_consistency=True,
-                         dense_connection=True,
-                         decoder_inputs='corr_flow_feat',
-                         refinement_at_all_levels=False,
-                         refinement_at_adaptive_reso=True)
-    
-    
-    For SemanticGLU-Net:
-    model = SemanticGLUNet_model(batch_norm=True, pyramid_type='VGG',
-                             div=args.div_flow, evaluation=False,
-                             cyclic_consistency=False, consensus_network=True)
-    
-    One can change the parameters 
-    
-    '''
     model = GLUChangeNet_model(batch_norm=True, pyramid_type='VGG',
                                  div=args.div_flow, evaluation=False,
                                  consensus_network=False,
@@ -163,7 +226,7 @@ if __name__ == "__main__":
 
     # Optimizer
     optimizer = \
-        optim.Adam(filter(lambda p: p.requires_grad, model.parameters()),
+        optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
                    lr=args.lr,
                    weight_decay=args.weight_decay)
 
@@ -197,7 +260,7 @@ if __name__ == "__main__":
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
                     state[k] = v.to(device)
-        cur_snapshot = os.path.basename(os.path.dirname(args.pretrained))
+        cur_snapshot = os.path.basename(os.path.dirname(args.resume))
     else:
         if not os.path.isdir(args.snapshots):
             os.mkdir(args.snapshots)
@@ -215,7 +278,7 @@ if __name__ == "__main__":
     # create summary writer
     save_path = osp.join(args.snapshots, cur_snapshot)
     train_writer = SummaryWriter(os.path.join(save_path, 'train'))
-    test_writer = SummaryWriter(os.path.join(save_path, 'test'))
+    val_writer = SummaryWriter(os.path.join(save_path, 'test'))
 
     model = nn.DataParallel(model)
     model = model.to(device)
@@ -226,7 +289,29 @@ if __name__ == "__main__":
         scheduler.step()
         print('starting epoch {}:  learning rate is {}'.format(epoch, scheduler.get_lr()[0]))
 
+        for dataset_name,test_dataloader in test_dataloaders.items():
+            try:
+                test_epoch(model, test_dataloader, device, epoch=epoch,
+                           save_path=os.path.join(save_path, dataset_name),
+                           writer=val_writer,
+                           div_flow=args.div_flow)
+            except:
+                pass
         # Training one epoch
+        # '''
+        train_loss = train_change(model,
+                                 optimizer,
+                                 train_changesim_loader,
+                                 device,
+                                 epoch,
+                                 train_writer,
+                                 loss_grid_weights=weights_loss_coeffs)
+        #
+        # test_epoch(model, test_dataloaders['changesim_storage'], device, epoch=epoch,
+        #            save_path=os.path.join(save_path, 'changesim_storage'),
+        #            writer=val_writer,
+        #            div_flow=args.div_flow)
+
         train_loss = train_epoch(model,
                                  optimizer,
                                  train_dataloader,
@@ -236,16 +321,29 @@ if __name__ == "__main__":
                                  div_flow=args.div_flow,
                                  save_path=os.path.join(save_path, 'train'),
                                  loss_grid_weights=weights_loss_coeffs)
+
         train_writer.add_scalar('train loss: flow(EPE)', train_loss['flow'], epoch)
         train_writer.add_scalar('train loss: change(FE)', train_loss['change'], epoch)
-
         train_writer.add_scalar('learning_rate', scheduler.get_lr()[0], epoch)
         print(colored('==> ', 'green') + 'Train average loss:', train_loss['total'])
 
+
+
+        save_checkpoint({'epoch': epoch + 1,
+                         'state_dict': model.module.state_dict(),
+                         'optimizer': optimizer.state_dict(),
+                         'scheduler': scheduler.state_dict(),
+                         'best_loss': 9999999},
+                        False, save_path, 'epoch_{}.pth'.format(epoch + 1))
+
+
+
+        '''
         # Validation
         val_loss_grid, val_mean_epe, val_mean_epe_H_8, val_mean_epe_32, val_mean_epe_16 = \
             validate_epoch(model, val_dataloader, device, epoch=epoch,
-                           save_path=os.path.join(save_path, 'test'),
+                           save_path=os.path.join(save_path, 'val'),
+                           writer = val_writer,
                            div_flow=args.div_flow,
                            loss_grid_weights=weights_loss_coeffs)
         print(colored('==> ', 'blue') + 'Val average grid loss :',
@@ -254,11 +352,11 @@ if __name__ == "__main__":
         print('mean EPE from reso H/8 is {}'.format(val_mean_epe_H_8))
         print('mean EPE from reso 32 is {}'.format(val_mean_epe_32))
         print('mean EPE from reso 16 is {}'.format(val_mean_epe_16))
-        test_writer.add_scalar('validation images: mean EPE ', val_mean_epe, epoch)
-        test_writer.add_scalar('validation images: mean EPE_from_reso_H_8', val_mean_epe_H_8, epoch)
-        test_writer.add_scalar('validation images: mean EPE_from_reso_32', val_mean_epe_32, epoch)
-        test_writer.add_scalar('validation images: mean EPE_from_reso_16', val_mean_epe_16, epoch)
-        test_writer.add_scalar('validation images: val loss', val_loss_grid, epoch)
+        val_writer.add_scalar('validation images: mean EPE ', val_mean_epe, epoch)
+        val_writer.add_scalar('validation images: mean EPE_from_reso_H_8', val_mean_epe_H_8, epoch)
+        val_writer.add_scalar('validation images: mean EPE_from_reso_32', val_mean_epe_32, epoch)
+        val_writer.add_scalar('validation images: mean EPE_from_reso_16', val_mean_epe_16, epoch)
+        val_writer.add_scalar('validation images: val loss', val_loss_grid, epoch)
         print(colored('==> ', 'blue') + 'finished epoch :', epoch + 1)
 
         # save checkpoint for each epoch and a fine called best_model so far
@@ -270,5 +368,5 @@ if __name__ == "__main__":
                          'scheduler': scheduler.state_dict(),
                          'best_loss': best_val},
                         is_best, save_path, 'epoch_{}.pth'.format(epoch + 1))
-
+        '''
     print(args.seed, 'Training took:', time.time()-train_started, 'seconds')

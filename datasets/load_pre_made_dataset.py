@@ -1,6 +1,6 @@
 import os.path
 import glob
-from .listdataset import ListDataset
+from .listdataset import ListDataset, ListChangeDataset
 from datasets.util import split2list
 
 
@@ -39,6 +39,36 @@ def make_dataset(dir, split=None, dataset_name=None):
             images.append([[img1, img2], flow_map])
     return split2list(images, split, default_split=0.97)
 
+def make_change_dataset(dir, split=None, dataset_name=None):
+    '''Will search for triplets that go by the pattern '[name]_img1.ppm  [name]_img2.ppm  in folder images and
+      [name]_flow.flo' in folder flow '''
+    images = []
+    '''
+    if get_mapping:
+        flow_dir = 'mapping'
+        # flow_dir is actually mapping dir in that case, it is always normalised to [-1,1]
+    '''
+    flow_dir = 'flow'
+    image_dir = 'image'
+    mask_dir = 'mask'
+    # Make sure that the folders exist
+    if not os.path.isdir(dir):
+        raise ValueError("the training directory path that you indicated does not exist ! ")
+    if not os.path.isdir(os.path.join(dir, flow_dir)):
+        raise ValueError("the training directory path that you indicated does not contain the flow folder ! Check your directories.")
+    if not os.path.isdir(os.path.join(dir, image_dir)):
+        raise ValueError("the training directory path that you indicated does not contain the images folder ! Check your directories.")
+
+    for change_type in ('static','missing','new','replaced','rotated'):
+        for flow_map in sorted(glob.glob(os.path.join(dir, flow_dir,change_type, '*.flo'))):
+            idx = os.path.basename(flow_map)[:-4]
+            img1 = os.path.join(dir,image_dir,'ref',change_type,idx+'.png') # ref (source)
+            img2 = os.path.join(dir,image_dir,'query',change_type,idx+'.png') # query (target)
+            mask1 = os.path.join(dir,mask_dir,'ref',change_type,idx+'.png') # ref (source)
+            mask2 = os.path.join(dir,mask_dir,'query',change_type,idx+'.png') # query (target)
+            images.append([[img1, img2], [mask1, mask2], flow_map])
+
+    return split2list(images, split, default_split=0.97)
 
 def PreMadeDataset(root, source_image_transform=None, target_image_transform=None, flow_transform=None,
                    co_transform=None, split=None):
@@ -62,5 +92,24 @@ def PreMadeDataset(root, source_image_transform=None, target_image_transform=Non
     test_dataset = ListDataset(root, test_list, source_image_transform=source_image_transform,
                                target_image_transform=target_image_transform,
                                flow_transform=flow_transform, co_transform=co_transform)
+
+    return train_dataset, test_dataset
+
+def PreMadeChangeDataset(root, source_image_transform=None, target_image_transform=None, flow_transform=None,
+                   co_transform=None, change_transform=None, split=None, multi_class=False):
+
+    train_list, test_list = make_change_dataset(root, split)
+    print('Loading dataset at {}'.format(root))
+
+    train_dataset = ListChangeDataset(root, train_list, source_image_transform=source_image_transform,
+                                                    target_image_transform=target_image_transform,
+                                                    flow_transform=flow_transform, co_transform=co_transform,
+                                                    change_transform=change_transform,
+                                                    multi_class=multi_class)
+    test_dataset = ListChangeDataset(root, test_list, source_image_transform=source_image_transform,
+                                                   target_image_transform=target_image_transform,
+                                                   flow_transform=flow_transform, co_transform=co_transform,
+                                                   change_transform=change_transform,
+                                                   multi_class=multi_class)
 
     return train_dataset, test_dataset

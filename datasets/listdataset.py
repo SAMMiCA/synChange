@@ -5,7 +5,8 @@ from imageio import imread
 import numpy as np
 from datasets.util import load_flo
 import torch
-
+import torchvision.transforms as transforms
+import albumentations as A
 
 def get_gt_correspondence_mask(flow):
     # convert flow to mapping
@@ -28,9 +29,6 @@ def default_loader(root, path_imgs, path_flo):
 
 def default_change_loader(root, path_imgs, path_masks, path_flo):
     change_types = {'static':0,'missing':1,'new':2,'replaced':3,'rotated':4}
-    # change_type = path_masks.split('/')[-2]
-    # change_idx = change_types[change_type]
-
     return [imread(img).astype(np.uint8) for img in path_imgs], \
            [imread(mask).astype(np.uint8)/255*change_types[mask.split('/')[-2]] for mask in path_masks], \
            load_flo(path_flo)
@@ -116,10 +114,11 @@ class ListDataset(data.Dataset):
 
 
 class ListChangeDataset(data.Dataset):
-    def __init__(self, root, path_list, source_image_transform=None, target_image_transform=None, flow_transform=None,
+    def __init__(self, root, path_list,
+                 source_image_transform=None, target_image_transform=None, flow_transform=None,
                  co_transform=None,
                  change_transform=None,
-                 loader=default_change_loader, mask=False, size=False):
+                 loader=default_change_loader, mask=False, size=False, multi_class=False):
         """
 
         :param root: directory containing the dataset images
@@ -149,6 +148,7 @@ class ListChangeDataset(data.Dataset):
         self.loader = loader
         self.mask = mask
         self.size = size
+        self.num_class = 5 if multi_class else 1
 
     def __getitem__(self, index):
         # for all inputs[0] must be the source and inputs[1] must be the target
@@ -166,14 +166,26 @@ class ListChangeDataset(data.Dataset):
         # after co transform that could be reshapping the target
         # transforms here will always contain conversion to tensor (then channel is before)
         if self.source_image_transform is not None:
-            inputs[0] = self.source_image_transform(inputs[0])
+            if isinstance(self.source_image_transform,transforms.Compose):
+                inputs[0] = self.source_image_transform(inputs[0])
+            elif isinstance(self.source_image_transform,A.Compose):
+                inputs[0] = self.source_image_transform(image=inputs[0])['image']
+            else: raise ValueError
         if self.target_image_transform is not None:
-            inputs[1] = self.target_image_transform(inputs[1])
+            if isinstance(self.target_image_transform,transforms.Compose):
+                inputs[1] = self.target_image_transform(inputs[1])
+            elif isinstance(self.target_image_transform,A.Compose):
+                inputs[1] = self.target_image_transform(image=inputs[1])['image']
+            else: raise ValueError
+
         if self.flow_transform is not None:
             gt_flow = self.flow_transform(gt_flow)
         if self.change_transform is not None:
             gt_changes[0] = self.change_transform(gt_changes[0])[0] # use only one channel (the three channells are the same)
             gt_changes[1] = self.change_transform(gt_changes[1])[0]
+
+        if self.num_class ==1: # multi-class classification -> binary classification
+            gt_changes[0], gt_changes[1] = gt_changes[0].bool().int(), gt_changes[1].bool().int()
 
         return {'source_image': inputs[0],
                 'target_image': inputs[1],
