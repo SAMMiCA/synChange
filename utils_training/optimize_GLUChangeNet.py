@@ -312,7 +312,6 @@ def train_epoch(net,
     """
     n_iter = epoch*len(train_loader)
     net.train()
-
     running_total_loss = 0
     running_flow_loss = 0
     running_change_loss = 0
@@ -374,37 +373,38 @@ def train_epoch(net,
         Loss_change +=multiscaleCE(out_change_orig, target_change, weights=weights_original)
 
         Loss_total = Loss_change+Loss_flow
-
         Loss_total.backward()
         optimizer.step()
-        if i % 100 == 0:
-            if apply_mask:
-                vis_img = plot_during_training2(save_path, epoch, i, apply_mask,
-                                     h_original, w_original, h_256, w_256,
-                                     source_image, target_image, source_image_256, target_image_256, div_flow,
-                                     flow_gt_original, flow_gt_256, output_net=out_flow_orig[-1],
-                                     output_net_256=out_flow_256[-1],
-                                       target_change_original=target_change,
-                                       target_change_256=target_change_256,
-                                       out_change_orig=out_change_orig,
-                                       out_change_256=out_change_256,
-                                       mask=mask, mask_256=mask_256,
-                                        return_img = True)
-                writer.add_image('train_warping_per_iter', vis_img, n_iter)
 
-            else:
-                vis_img = plot_during_training2(save_path, epoch, i, apply_mask,
-                                     h_original, w_original, h_256, w_256,
-                                     source_image, target_image, source_image_256, target_image_256, div_flow,
-                                     flow_gt_original, flow_gt_256, output_net=out_flow_orig[-1],
-                                     output_net_256=out_flow_256[-1],
-                                   target_change_original=target_change,
-                                   target_change_256=target_change_256,
-                                   out_change_orig=out_change_orig,
-                                   out_change_256=out_change_256,
-                                               return_img=True)
-                #import pdb; pdb.set_trace()
-                writer.add_image('train_warping_per_iter', vis_img, n_iter)
+
+        # if i % 100 == 0:
+        #     if apply_mask:
+        #         vis_img = plot_during_training2(save_path, epoch, i, apply_mask,
+        #                              h_original, w_original, h_256, w_256,
+        #                              source_image, target_image, source_image_256, target_image_256, div_flow,
+        #                              flow_gt_original, flow_gt_256, output_net=out_flow_orig[-1],
+        #                              output_net_256=out_flow_256[-1],
+        #                                target_change_original=target_change,
+        #                                target_change_256=target_change_256,
+        #                                out_change_orig=out_change_orig,
+        #                                out_change_256=out_change_256,
+        #                                mask=mask, mask_256=mask_256,
+        #                                 return_img = True)
+        #         writer.add_image('train_warping_per_iter', vis_img, n_iter)
+        #
+        #     else:
+        #         vis_img = plot_during_training2(save_path, epoch, i, apply_mask,
+        #                              h_original, w_original, h_256, w_256,
+        #                              source_image, target_image, source_image_256, target_image_256, div_flow,
+        #                              flow_gt_original, flow_gt_256, output_net=out_flow_orig[-1],
+        #                              output_net_256=out_flow_256[-1],
+        #                            target_change_original=target_change,
+        #                            target_change_256=target_change_256,
+        #                            out_change_orig=out_change_orig,
+        #                            out_change_256=out_change_256,
+        #                                        return_img=True)
+        #         #import pdb; pdb.set_trace()
+        #         writer.add_image('train_warping_per_iter', vis_img, n_iter)
 
         running_total_loss += Loss_total.item()
         running_flow_loss += Loss_flow.item()
@@ -600,7 +600,8 @@ def test_epoch(net,
                epoch,
                save_path,
                writer,
-               div_flow=1
+               div_flow=1,
+               plot_interval=10
                ):
     """
     Test epoch script
@@ -653,7 +654,7 @@ def test_epoch(net,
                                               mode='bilinear', align_corners=False)  # shape Bx2xHxW
             flow_gt_256 = F.interpolate(out_flow_256[-1], (h_256, w_256),
                                               mode='bilinear', align_corners=False)  # shape Bx2xHxW
-            if i % 1 == 0:
+            if i % plot_interval == 0:
                 vis_img = plot_during_training2(save_path, epoch, i, False,
                                                h_original, w_original, h_256, w_256,
                                                source_image, target_image, source_image_256, target_image_256, div_flow,
