@@ -46,22 +46,22 @@ if __name__ == "__main__":
                         # default='pre_trained_models/GLUNet_DPED_CityScape_ADE.pth',
                         help='path to pre-trained model (load only model params)')
     parser.add_argument('--resume', dest='resume',
-                       default='snapshots/2021_09_23_19_17/epoch_11.pth',
+                       default='snapshots/2021_10_03_09_27/epoch_3.pth',
                        help='path to resume model (load both model and optimizer params')
     parser.add_argument('--multi_class', action='store_true',
                         help='if true, do multi-class change detection')
 
     # Optimization parameters
-    parser.add_argument('--lr', type=float, default=0.0001, help='learning rate')
+    parser.add_argument('--lr', type=float, default=0.0002, help='learning rate')
     parser.add_argument('--momentum', type=float,
                         default=4e-4, help='momentum constant')
     parser.add_argument('--start_epoch', type=int, default=-1,
                         help='start epoch')
-    parser.add_argument('--n_epoch', type=int, default=100,
+    parser.add_argument('--n_epoch', type=int, default=25,
                         help='number of training epochs')
-    parser.add_argument('--batch-size', type=int, default=8,
+    parser.add_argument('--batch-size', type=int, default=24,
                         help='training batch size')
-    parser.add_argument('--n_threads', type=int, default=8,
+    parser.add_argument('--n_threads', type=int, default=4,
                         help='number of parallel threads for dataloaders')
     parser.add_argument('--weight-decay', type=float, default=4e-4,
                         help='weight decay constant')
@@ -128,16 +128,8 @@ if __name__ == "__main__":
                                       flow_transform=flow_transform,
                                       co_transform=None,
                                       change_transform=change_transform,
-                                      split=0.5,
+                                      split=0.99,
                                       multi_class =args.multi_class)  # train:val = 95:5
-    train_changesim = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
-                                  source_image_transform=source_img_transforms,
-                                  target_image_transform=target_img_transforms,
-                                  change_transform=change_transform,
-                                  multi_class=True,
-                                  mapname='Storage',
-                                  split='*'
-                                  )
     test_datasets = {}
 
     test_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
@@ -189,22 +181,18 @@ if __name__ == "__main__":
                                   co_transform=co_transform,
                                   change_transform=change_transform,
                                   )
-    # test_datasets['vl_cmu_cd'] = vl_cmu_cd_eval(root=os.path.join(args.evaluation_data_dir,'VL-CMU-CD'),
-    #                               source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-    #                               target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-    #                               change_transform=change_transform,
-    #                               )
+    test_datasets['vl_cmu_cd'] = vl_cmu_cd_eval(root=os.path.join(args.evaluation_data_dir,'VL-CMU-CD'),
+                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  change_transform=change_transform,
+                                  )
 
     # Dataloader
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=args.batch_size,
                                   shuffle=True,
-                                  num_workers=args.n_threads)
-    train_changesim_loader = DataLoader(train_changesim,
-                                  batch_size=args.batch_size,
-                                  shuffle=True,
-                                  num_workers=args.n_threads)
-
+                                  num_workers=args.n_threads,
+                                  pin_memory=True)
     val_dataloader = DataLoader(val_dataset,
                                 batch_size=args.batch_size,
                                 shuffle=True,
@@ -231,7 +219,7 @@ if __name__ == "__main__":
                    weight_decay=args.weight_decay)
 
     scheduler = lr_scheduler.MultiStepLR(optimizer,
-                                         milestones=[65, 75, 95],
+                                         milestones=[12, 20, 23],
                                          gamma=0.5)
     weights_loss_coeffs = [0.32, 0.08, 0.02, 0.01]
 
@@ -289,28 +277,7 @@ if __name__ == "__main__":
         scheduler.step()
         print('starting epoch {}:  learning rate is {}'.format(epoch, scheduler.get_lr()[0]))
 
-        for dataset_name,test_dataloader in test_dataloaders.items():
-            try:
-                test_epoch(model, test_dataloader, device, epoch=epoch,
-                           save_path=os.path.join(save_path, dataset_name),
-                           writer=val_writer,
-                           div_flow=args.div_flow)
-            except:
-                pass
         # Training one epoch
-        # '''
-        train_loss = train_change(model,
-                                 optimizer,
-                                 train_changesim_loader,
-                                 device,
-                                 epoch,
-                                 train_writer,
-                                 loss_grid_weights=weights_loss_coeffs)
-        #
-        # test_epoch(model, test_dataloaders['changesim_storage'], device, epoch=epoch,
-        #            save_path=os.path.join(save_path, 'changesim_storage'),
-        #            writer=val_writer,
-        #            div_flow=args.div_flow)
 
         train_loss = train_epoch(model,
                                  optimizer,
@@ -337,6 +304,15 @@ if __name__ == "__main__":
                         False, save_path, 'epoch_{}.pth'.format(epoch + 1))
 
 
+        for dataset_name,test_dataloader in test_dataloaders.items():
+            try:
+                test_epoch(model, test_dataloader, device, epoch=epoch,
+                           save_path=os.path.join(save_path, dataset_name),
+                           writer=val_writer,
+                           div_flow=args.div_flow,
+                           plot_interval=10)
+            except:
+                pass
 
         '''
         # Validation
