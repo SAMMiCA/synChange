@@ -23,6 +23,7 @@ from datasets.vl_cmu_cd import vl_cmu_cd_eval
 from datasets.pcd import gsv_eval, tsunami_eval
 from datasets.changesim import changesim_eval
 from datasets.desk import desk_demo
+from datasets.ai2thor import ai2thor
 import albumentations as A
 from tqdm import tqdm
 import torch.nn.functional as F
@@ -171,10 +172,15 @@ if __name__ == "__main__":
     change_transform = transforms.Compose([ArrayToTensor()])
 
     test_datasets = {}
+    test_datasets['ai2thor'] = ai2thor(root=os.path.join(args.evaluation_data_dir,'ai2thor'),
+                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                  )
     test_datasets['desk2'] = desk_demo(root=os.path.join(args.evaluation_data_dir,'desk'),
                                   source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
                                   target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
                                   )
+
     # test_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
     #                               source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
     #                               target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
@@ -232,7 +238,7 @@ if __name__ == "__main__":
 
     # Dataloader
 
-    test_dataloaders = {k:DataLoader(test_dataset,batch_size=1,shuffle=False,num_workers=args.n_threads)
+    test_dataloaders = {k:DataLoader(test_dataset,batch_size=1,shuffle=False,num_workers=1)
                         for k, test_dataset in test_datasets.items()}
 
     # models
