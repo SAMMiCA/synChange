@@ -20,3 +20,5 @@ tqdm==4.19.9
 albumentations
 pycocotools
 flow_vis
+tensorboardx
+natsort
