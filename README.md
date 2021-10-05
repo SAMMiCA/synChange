@@ -34,11 +34,38 @@ or just download one
 cd ..
 mkdir dataset
 cd dataset
-sudo scp -r rit@143.248.151.68:/home/rit/E2EChangeDet/dataset/train_datasets .
+mkdir dataset/train_datasets
+cd train_datasets
+sudo scp -r rit@143.248.151.68:/home/rit/E2EChangeDet/dataset/train_datasets/synthetic .
+cd synthetic/flow
+ln -s static new
+ln -s ststic replaced
+ln -s static missing
 ```
 
 # Prepare Test set
 ```bash
+cd ../../.. 
+# In 'dataset' folder
 sudo scp -r rit@143.248.151.68:/home/rit/E2EChangeDet/dataset/test_datasets .
 ```
 
+# Init Training for Single-class Change Detection
+```bash
+cd ../GLU-ChangeNet-Pytorch
+python train_GLUChangeNet.py \
+--training_data_dir ../dataset/train_datasets/synthetic \
+--evaluation_data_dir ../dataset/test_datasets \
+--pretrained pre_trained_models/GLUNet_DPED_CityScape_ADE.pth
+--resume ''
+```
+# Init Training for Multi-class Change Detection
+```bash
+cd ../GLU-ChangeNet-Pytorch
+python train_GLUChangeNet.py \
+--training_data_dir ../dataset/train_datasets/synthetic \
+--evaluation_data_dir ../dataset/test_datasets \
+--pretrained pre_trained_models/GLUNet_DPED_CityScape_ADE.pth \
+--resume '' \
+--multi_class
+```
