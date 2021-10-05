@@ -45,6 +45,8 @@ ln -s static missing
 
 # Prepare Test set
 ```bash
+cd ../../.. 
+# In 'dataset' folder
 sudo scp -r rit@143.248.151.68:/home/rit/E2EChangeDet/dataset/test_datasets .
 ```
 
