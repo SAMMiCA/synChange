@@ -136,7 +136,8 @@ if __name__ == "__main__":
                                   change_transform=change_transform,
                                   split= 'train'
                                   )
-    train_dataset = torch.utils.data.ConcatDataset(list(train_datasets))
+    train_dataset = torch.utils.data.ConcatDataset([ d for k,d in train_datasets.items()])
+    import pdb; pdb.set_trace()
     test_datasets = {}
 
     test_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
