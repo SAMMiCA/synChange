@@ -23,7 +23,7 @@ class GLUChangeNet_model(nn.Module):
     def __init__(self, evaluation, div=1.0, iterative_refinement=False,
                  refinement_at_all_levels=False, refinement_at_adaptive_reso=True,
                  batch_norm=True, pyramid_type='VGG', md=4, upfeat_channels=2, dense_connection=True,
-                 consensus_network=False, cyclic_consistency=True, decoder_inputs='corr_flow_feat'):
+                 consensus_network=False, cyclic_consistency=True, decoder_inputs='corr_flow_feat', num_class=2):
         """
         input: md --- maximum displacement (for correlation. default: 4), after warpping
 
@@ -158,17 +158,17 @@ class GLUChangeNet_model(nn.Module):
 
         self.evaluation=evaluation
 
-        self.num_class = 5
+        self.num_class = num_class
         self.change_dec4 = ConvDecoder(in_channels=512+512+256, bn=batch_norm, out_channels=self.num_class)
-        self.change_deconv4 = deconv(5, 5, kernel_size=4, stride=2, padding=1)
+        self.change_deconv4 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
         self.change_dec3 = ConvDecoder(in_channels=256+256+81, bn=batch_norm, out_channels=self.num_class)
-        self.change_deconv3 = deconv(5, 5, kernel_size=4, stride=2, padding=1)
+        self.change_deconv3 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
 
         self.change_dec2 = ConvDecoder(in_channels=256+256+81, bn=batch_norm, out_channels=self.num_class)
-        self.change_deconv2 = deconv(5, 5, kernel_size=4, stride=2, padding=1)
+        self.change_deconv2 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
 
         self.change_dec1 = ConvDecoder(in_channels=128+128+81, bn=batch_norm, out_channels=self.num_class)
-        self.change_deconv1 = deconv(5, 5, kernel_size=4, stride=2, padding=1)
+        self.change_deconv1 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
 
 
     def pre_process_data(self, source_img, target_img, device, apply_flip=False):

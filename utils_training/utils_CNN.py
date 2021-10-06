@@ -17,8 +17,11 @@ def load_my_state_dict(model, state_dict):  # custom function to load model when
             print('{}not in model_state'.format(name))
             continue
         else:
-            own_state[name].copy_(param)
-
+            try:
+                own_state[name].copy_(param)
+            except RuntimeError as e:
+                print(e)
+                continue
     return model
 
 def load_checkpoint(model, optimizer=None, scheduler=None, filename='checkpoint.pth.tar'):

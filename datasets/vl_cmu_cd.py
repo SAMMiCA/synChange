@@ -18,6 +18,7 @@ class vl_cmu_cd_eval(Dataset):
                  source_image_transform=None, target_image_transform=None,
                  change_transform=None,
                  split='train',
+                 img_size = (640,480)
                  ):
         super(vl_cmu_cd_eval, self).__init__()
 
@@ -25,7 +26,6 @@ class vl_cmu_cd_eval(Dataset):
         video_idxs = TRAIN_VIDEOS if split == 'train' else TEST_VIDEOS
         video_idxs = video_idxs.strip().split(' ')
         self.paths['GT'] = [path for path in self.paths['GT'] if str(int(path.split('/')[-3])) in video_idxs]
-        print('LOADING {} split of VL-CMU-CD ({} pairs)'.format(split,len(self.paths['GT'])))
         query_paths, ref_paths = [],[]
         for gtpath in self.paths['GT']:
             query_path = gtpath.replace('GT','RGB')
@@ -39,6 +39,7 @@ class vl_cmu_cd_eval(Dataset):
         self.source_image_transform = source_image_transform
         self.target_image_transform = target_image_transform
         self.change_transform = change_transform
+        self.img_size = img_size
         self.colors = np.array([[  0,   0,   0],
                                 [255, 255, 255],
                                  [201, 174, 255],
@@ -88,9 +89,10 @@ class vl_cmu_cd_eval(Dataset):
         img_t1 = cv2.imread(fn_t1, 1)
         img_t1 = cv2.cvtColor(img_t1,cv2.COLOR_BGR2RGB)
 
-        w, h, c = img_t0.shape
-        w_r = int(256 * max(w / 256, 1))
-        h_r = int(256 * max(h / 256, 1))
+        #h, w, c = img_t0.shape
+        # w_r = int(256 * max(w / 256, 1))
+        # h_r = int(256 * max(h / 256, 1))
+        (h_r, w_r) = self.img_size
 
         img_t0_r = cv2.resize(img_t0, (h_r, w_r))
         img_t1_r = cv2.resize(img_t1, (h_r, w_r))
@@ -118,10 +120,10 @@ class vl_cmu_cd_eval(Dataset):
 
         return {'source_image': img_t1_r_,
                 'target_image': img_t0_r_,
-                'source_change': mask_binary.squeeze(),
-                'target_change': mask_binary.squeeze(),
+                'source_change': mask_binary.squeeze().int(),
+                'target_change': mask_binary.squeeze().int(),
                 'flow_map': torch.zeros(2,img_t1_r_.shape[1],img_t1_r_.shape[2]),
-                'source_image_size': (h_r,w_r,3)
+                #'source_image_size': (h_r,w_r,3)
                 }
 
     def __len__(self):

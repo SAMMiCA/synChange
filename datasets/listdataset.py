@@ -192,9 +192,9 @@ class ListChangeDataset(data.Dataset):
                 'source_change': gt_changes[0],
                 'target_change': gt_changes[1],
                 'flow_map': gt_flow,
-                'correspondence_mask': mask.astype(np.bool) if float(torch.__version__[:3]) >= 1.1
-                else mask.astype(np.uint8),
-                'source_image_size': source_size
+                # 'correspondence_mask': mask.astype(np.bool) if float(torch.__version__[:3]) >= 1.1
+                # else mask.astype(np.uint8),
+                # 'source_image_size': source_size
                 }
 
     def __len__(self):

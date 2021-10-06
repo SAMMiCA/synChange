@@ -8,6 +8,22 @@ from matplotlib import pyplot as plt
 from imageio import imread
 import torchvision.transforms as tf
 import os
+from torchnet.meter.confusionmeter import ConfusionMeter
+
+
+def IoU(conf_matrix):
+    if isinstance(conf_matrix,(torch.FloatTensor,torch.LongTensor)):
+        conf_matrix=conf_matrix.numpy()
+    true_positive = np.diag(conf_matrix)
+    false_positive = np.sum(conf_matrix, 0) - true_positive
+    false_negative = np.sum(conf_matrix, 1) - true_positive
+
+    # Just in case we get a division by 0, ignore/hide the error
+    with np.errstate(divide='ignore', invalid='ignore'):
+        iou = true_positive / (true_positive + false_positive + false_negative)
+
+    return iou, np.nanmean(iou)
+
 def pre_process_data(source_img, target_img, device):
     '''
     Pre-processes source and target images before passing it to the network
@@ -315,6 +331,8 @@ def train_epoch(net,
     running_total_loss = 0
     running_flow_loss = 0
     running_change_loss = 0
+    confmeter = ConfusionMeter(k=net.module.num_class,normalized=False)
+
     pbar = tqdm(enumerate(train_loader), total=len(train_loader))
     for i, mini_batch in pbar:
         optimizer.zero_grad()
@@ -376,7 +394,10 @@ def train_epoch(net,
         Loss_total.backward()
         optimizer.step()
 
-
+        out_change_orig = torch.nn.functional.interpolate(out_change_orig[-1].detach(),size = (h_original,w_original), mode='bilinear')
+        out_change_orig = out_change_orig.permute(0, 2, 3, 1).reshape(-1, out_change_orig.shape[1])
+        target_change = target_change.detach().permute(0,2,3,1).reshape(-1,1)
+        confmeter.add(out_change_orig,target_change.squeeze().long())
         # if i % 100 == 0:
         #     if apply_mask:
         #         vis_img = plot_during_training2(save_path, epoch, i, apply_mask,
@@ -429,8 +450,17 @@ def train_epoch(net,
     running_change_loss /= len(train_loader)
     running_flow_loss /= len(train_loader)
 
+    conf = torch.FloatTensor(confmeter.value())
+    Acc = 100*(conf.diag().sum() / conf.sum()).item()
+    recall = conf[1,1]/(conf[1,0]+conf[1,1])
+    precision =conf[1,1]/(conf[0,1]+conf[1,1])
+    f1 = 100*2*recall*precision/(recall+precision)
+    IoUs, mIoU = IoU(conf)
+    IoUs, mIoU = 100 * IoUs, 100 * mIoU
 
-    return dict(total=running_total_loss,change=running_change_loss,flow=running_flow_loss)
+
+    return dict(total=running_total_loss,change=running_change_loss,flow=running_flow_loss, accuracy = Acc,
+                IoUs=IoUs, mIoU = mIoU, f1=f1)
 
 
 def validate_epoch(net,
@@ -468,6 +498,7 @@ def validate_epoch(net,
 
     """
     n_iter = epoch*len(val_loader)
+    confmeter = ConfusionMeter(k=net.module.num_class,normalized=False)
 
     net.eval()
     if loss_grid_weights is None:
@@ -583,6 +614,11 @@ def validate_epoch(net,
             # for index_reso_256 in range(len(out_change_256)):
             #     CE = change_criterion(out_change_256[-(index_reso_256+1)], target_change_256)
             #     CE_array[(len(out_change_orig) + index_reso_256), i] = CE
+            out_change_orig = torch.nn.functional.interpolate(out_change_orig[-1].detach(),
+                                                              size=(h_original, w_original), mode='bilinear')
+            out_change_orig = out_change_orig.permute(0, 2, 3, 1).reshape(-1, out_change_orig.shape[1])
+            target_change = target_change.detach().permute(0, 2, 3, 1).reshape(-1, 1)
+            confmeter.add(out_change_orig, target_change.squeeze().long())
 
             running_total_loss += Loss.item()
             pbar.set_description(
@@ -590,6 +626,17 @@ def validate_epoch(net,
                                              Loss.item()))
         mean_epe = torch.mean(EPE_array, dim=1)
 
+    conf = torch.FloatTensor(confmeter.value())
+    Acc = 100*(conf.diag().sum() / conf.sum()).item()
+    recall = conf[1,1]/(conf[1,0]+conf[1,1])
+    precision =conf[1,1]/(conf[0,1]+conf[1,1])
+    f1 = 100*2*recall*precision/(recall+precision)
+    IoUs, mIoU = IoU(conf)
+    IoUs, mIoU = 100 * IoUs, 100 * mIoU
+
+
+    # return dict(total=running_total_loss,change=running_change_loss,flow=running_flow_loss, accuracy = Acc,
+    #             IoUs=IoUs, mIoU = mIoU, f1=f1)
     return running_total_loss / len(val_loader), mean_epe[0].item(), mean_epe[1].item(), mean_epe[2].item(), mean_epe[3].item()
 
 
@@ -627,6 +674,7 @@ def test_epoch(net,
 
     """
     n_iter = epoch*len(test_loader)
+    confmeter = ConfusionMeter(k=net.module.num_class,normalized=False)
 
     net.eval()
 
@@ -654,6 +702,10 @@ def test_epoch(net,
                                               mode='bilinear', align_corners=False)  # shape Bx2xHxW
             flow_gt_256 = F.interpolate(out_flow_256[-1], (h_256, w_256),
                                               mode='bilinear', align_corners=False)  # shape Bx2xHxW
+
+
+
+
             if i % plot_interval == 0:
                 vis_img = plot_during_training2(save_path, epoch, i, False,
                                                h_original, w_original, h_256, w_256,
@@ -666,6 +718,22 @@ def test_epoch(net,
                                                out_change_256=out_change_256,
                                                return_img=True)
                 writer.add_image('val_warping_per_iter', vis_img, n_iter)
+
+            out_change_orig = torch.nn.functional.interpolate(out_change_orig[-1].detach(),
+                                                              size=(h_original, w_original), mode='bilinear')
+            out_change_orig = out_change_orig.permute(0, 2, 3, 1).reshape(-1, out_change_orig.shape[1])
+            target_change = target_change.detach().permute(0, 2, 3, 1).reshape(-1, 1)
+            confmeter.add(out_change_orig, target_change.squeeze().long())
+
+    conf = torch.FloatTensor(confmeter.value())
+    Acc = 100*(conf.diag().sum() / conf.sum()).item()
+    recall = conf[1,1]/(conf[1,0]+conf[1,1])
+    precision =conf[1,1]/(conf[0,1]+conf[1,1])
+    f1 = 100*2*recall*precision/(recall+precision)
+    IoUs, mIoU = IoU(conf)
+    IoUs, mIoU = 100 * IoUs, 100 * mIoU
+
+    return dict(accuracy = Acc, IoUs=IoUs, mIoU = mIoU, f1=f1)
 
 def train_change(net,
                 optimizer,

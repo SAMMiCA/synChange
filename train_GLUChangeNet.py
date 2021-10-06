@@ -24,6 +24,7 @@ from datasets.pcd import gsv_eval, tsunami_eval
 from datasets.changesim import changesim_eval
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
+
 if __name__ == "__main__":
     # Argument parsing
     parser = argparse.ArgumentParser(description='GLU-Net train script')
@@ -31,22 +32,16 @@ if __name__ == "__main__":
     parser.add_argument('--name_exp', type=str,
                         default=time.strftime('%Y_%m_%d_%H_%M'),
                         help='name of the experiment to save')
-    parser.add_argument('--pre_loaded_training_dataset', default=True, type=boolean_string,
-                        help='Synthetic training dataset is already created and saved in disk ? default is False')
-    parser.add_argument('--training_data_dir', type=str, default='result3',
-                        help='path to directory containing original images for training if --pre_loaded_training_'
-                             'dataset is False or containing the synthetic pairs of training images and their '
-                             'corresponding flow fields if --pre_loaded_training_dataset is True')
-    parser.add_argument('--evaluation_data_dir', type=str,  default='/media/rit/GLU-CHANGE-SSD500/dataset/',
-                        help='path to directory containing original images for validation if --pre_loaded_training_'
-                             'dataset is False or containing the synthetic pairs of validation images and their '
-                             'corresponding flow fields if --pre_loaded_training_dataset is True')
+    parser.add_argument('--training_data_dir', type=str, default='../dataset/train_datasets/synthetic',
+                        help='path to directory containing original images for training')
+    parser.add_argument('--evaluation_data_dir', type=str,  default='../dataset/test_datasets',
+                        help='path to directory containing original images for validation')
     parser.add_argument('--snapshots', type=str, default='./snapshots')
     parser.add_argument('--pretrained', dest='pretrained',
-                        # default='pre_trained_models/GLUNet_DPED_CityScape_ADE.pth',
+                        default='pre_trained_models/GLUNet_DPED_CityScape_ADE.pth',
                         help='path to pre-trained model (load only model params)')
     parser.add_argument('--resume', dest='resume',
-                       default='snapshots/2021_10_03_09_27/epoch_3.pth',
+                       # default='snapshots/2021_10_03_09_27/epoch_8.pth',
                        help='path to resume model (load both model and optimizer params')
     parser.add_argument('--multi_class', action='store_true',
                         help='if true, do multi-class change detection')
@@ -59,7 +54,7 @@ if __name__ == "__main__":
                         help='start epoch')
     parser.add_argument('--n_epoch', type=int, default=25,
                         help='number of training epochs')
-    parser.add_argument('--batch-size', type=int, default=24,
+    parser.add_argument('--batch-size', type=int, default=24, # for RTX3090
                         help='training batch size')
     parser.add_argument('--n_threads', type=int, default=4,
                         help='number of parallel threads for dataloaders')
@@ -69,6 +64,8 @@ if __name__ == "__main__":
                         help='div flow')
     parser.add_argument('--seed', type=int, default=1986,
                         help='Pseudo-RNG seed')
+    parser.add_argument('--split_ratio', type=float, default=0.99,
+                        help='train/val split ratio')
     args = parser.parse_args()
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -128,73 +125,80 @@ if __name__ == "__main__":
                                       flow_transform=flow_transform,
                                       co_transform=None,
                                       change_transform=change_transform,
-                                      split=0.01,
+                                      split=args.split_ratio,
                                       multi_class =args.multi_class)  # train:val = 95:5
     train_datasets['vl_cmu_cd'] =vl_cmu_cd_eval(root=os.path.join(args.evaluation_data_dir,'VL-CMU-CD'),
                                   source_image_transform=source_img_transforms,
                                   target_image_transform=target_img_transforms,
                                   change_transform=change_transform,
-                                  split= 'train'
+                                  split= 'train',
+                                  img_size = (520,520)
                                   )
+    for k, d in train_datasets.items():
+        print('LOADING train split of {} ({} pairs)'.format(k,len(d)))
+
     train_dataset = torch.utils.data.ConcatDataset([ d for k,d in train_datasets.items()])
-    import pdb; pdb.set_trace()
+    print('# of training samples in total: ({} pairs)'.format(len(train_dataset)))
+
     test_datasets = {}
 
-    test_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
-                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  change_transform=change_transform,
-                                  multi_class=False,
-                                  split='Seq_0'
-                                  )
-    test_datasets['changesim_dark'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
-                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  change_transform=change_transform,
-                                  multi_class=False,
-                                  split='Seq_0_dark'
-                                  )
-    test_datasets['changesim_dust'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
-                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  change_transform=change_transform,
-                                  multi_class=False,
-                                  split='Seq_0_dust'
-                                  )
-    test_datasets['changesim_storage'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
-                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  change_transform=change_transform,
-                                  multi_class=False,
-                                  mapname='Storage',
-                                   split='Seq_0'
-                                  )
-    test_datasets['changesim_fire'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
-                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  change_transform=change_transform,
-                                  multi_class=False,
-                                  split='Seq_0_fire'
-                                  )
-    test_datasets['gsv'] = gsv_eval(root=os.path.join(args.evaluation_data_dir,'GSV'),
-                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  co_transform=co_transform,
-                                  change_transform=change_transform,
-                                  )
-
-    test_datasets['tsunami'] = tsunami_eval(root=os.path.join(args.evaluation_data_dir,'TSUNAMI'),
-                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  co_transform=co_transform,
-                                  change_transform=change_transform,
-                                  )
+    # test_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
+    #                               source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               change_transform=change_transform,
+    #                               multi_class=False,
+    #                               split='Seq_0'
+    #                               )
+    # test_datasets['changesim_dark'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
+    #                               source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               change_transform=change_transform,
+    #                               multi_class=False,
+    #                               split='Seq_0_dark'
+    #                               )
+    # test_datasets['changesim_dust'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
+    #                               source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               change_transform=change_transform,
+    #                               multi_class=False,
+    #                               split='Seq_0_dust'
+    #                               )
+    # test_datasets['changesim_storage'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
+    #                               source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               change_transform=change_transform,
+    #                               multi_class=False,
+    #                               mapname='Storage',
+    #                                split='Seq_0'
+    #                               )
+    # test_datasets['changesim_fire'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
+    #                               source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               change_transform=change_transform,
+    #                               multi_class=False,
+    #                               split='Seq_0_fire'
+    #                               )
+    # test_datasets['gsv'] = gsv_eval(root=os.path.join(args.evaluation_data_dir,'GSV'),
+    #                               source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               co_transform=co_transform,
+    #                               change_transform=change_transform,
+    #                               )
+    #
+    # test_datasets['tsunami'] = tsunami_eval(root=os.path.join(args.evaluation_data_dir,'TSUNAMI'),
+    #                               source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               co_transform=co_transform,
+    #                               change_transform=change_transform,
+    #                               )
     test_datasets['vl_cmu_cd'] = vl_cmu_cd_eval(root=os.path.join(args.evaluation_data_dir,'VL-CMU-CD'),
                                   source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
                                   target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
                                   change_transform=change_transform,
                                   split='test'
                                   )
+    for k, d in test_datasets.items():
+        print('LOADING test split of {} ({} pairs)'.format(k,len(d)))
 
     # Dataloader
     train_dataloader = DataLoader(train_dataset,
@@ -218,7 +222,8 @@ if __name__ == "__main__":
                                  dense_connection=True,
                                  decoder_inputs='corr_flow_feat',
                                  refinement_at_all_levels=False,
-                                 refinement_at_adaptive_reso=True)
+                                 refinement_at_adaptive_reso=True,
+                                 num_class=5 if args.multi_class else 2)
     print(colored('==> ', 'blue') + 'GLU-Change-Net created.')
 
     # Optimizer
@@ -272,6 +277,9 @@ if __name__ == "__main__":
         best_val = float("inf")
         start_epoch = 0
 
+    # confusionmeter
+    num_class = 5 if args.multi_class else 2
+
     # create summary writer
     save_path = osp.join(args.snapshots, cur_snapshot)
     train_writer = SummaryWriter(os.path.join(save_path, 'train'))
@@ -283,10 +291,7 @@ if __name__ == "__main__":
     train_started = time.time()
 
     for epoch in range(start_epoch, args.n_epoch):
-        scheduler.step()
-        print('starting epoch {}:  learning rate is {}'.format(epoch, scheduler.get_lr()[0]))
-
-        # Training one epoch
+        print('starting epoch {}:  learning rate is {}'.format(epoch, scheduler.get_last_lr()[0]))
 
         train_loss = train_epoch(model,
                                  optimizer,
@@ -297,13 +302,16 @@ if __name__ == "__main__":
                                  div_flow=args.div_flow,
                                  save_path=os.path.join(save_path, 'train'),
                                  loss_grid_weights=weights_loss_coeffs)
-
+        scheduler.step()
         train_writer.add_scalar('train loss: flow(EPE)', train_loss['flow'], epoch)
         train_writer.add_scalar('train loss: change(FE)', train_loss['change'], epoch)
-        train_writer.add_scalar('learning_rate', scheduler.get_lr()[0], epoch)
+        train_writer.add_scalar('learning_rate', scheduler.get_last_lr()[0], epoch)
         print(colored('==> ', 'green') + 'Train average loss:', train_loss['total'])
 
-
+        print('          F1: {:.2f}, Accuracy: {:.2f} '.format(train_loss['f1'],train_loss['accuracy']))
+        print('          Static  |   Change   |   mIoU ')
+        print('          %7.2f %7.2f %7.2f ' %
+              (train_loss['IoUs'][0], train_loss['IoUs'][-1], train_loss['mIoU']))
 
         save_checkpoint({'epoch': epoch + 1,
                          'state_dict': model.module.state_dict(),
@@ -312,16 +320,17 @@ if __name__ == "__main__":
                          'best_loss': 9999999},
                         False, save_path, 'epoch_{}.pth'.format(epoch + 1))
 
-
         for dataset_name,test_dataloader in test_dataloaders.items():
-            try:
-                test_epoch(model, test_dataloader, device, epoch=epoch,
-                           save_path=os.path.join(save_path, dataset_name),
-                           writer=val_writer,
-                           div_flow=args.div_flow,
-                           plot_interval=10)
-            except:
-                pass
+            result = test_epoch(model, test_dataloader, device, epoch=epoch,
+                       save_path=os.path.join(save_path, dataset_name),
+                       writer=val_writer,
+                       div_flow=args.div_flow,
+                       plot_interval=10)
+            print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
+            print('          Static  |   Change   |   mIoU ')
+            print('          %7.2f %7.2f %7.2f ' %
+                  (result['IoUs'][0], result['IoUs'][-1], result['mIoU']))
+
 
         '''
         # Validation
