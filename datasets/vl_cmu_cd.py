@@ -8,69 +8,24 @@ from glob import glob
 import torchvision.transforms as transforms
 import albumentations as A
 
-def check_validness(f):
-    return any([i in spt(f)[1] for i in ['jpg','png']])
-
-class vl_cmu_cd(Dataset):
-
-    def __init__(self, root,
-                 ):
-        super(vl_cmu_cd, self).__init__()
-        self.img_t0_root = pjoin(root, 't0')
-        self.img_t1_root = pjoin(root, 't1')
-        self.img_mask_root = pjoin(root, 'mask')
-        self.filename = list(spt(f)[0] for f in os.listdir(self.img_mask_root) if check_validness(f))
-        self.filename.sort()
-
-    def __getitem__(self, index):
-
-        fn = self.filename[index]
-        fn_t0 = pjoin(self.img_t0_root, fn + '.png')
-        fn_t1 = pjoin(self.img_t1_root, fn + '.png')
-        fn_mask = pjoin(self.img_mask_root, fn + '.png')
-
-        if os.path.isfile(fn_t0) == False:
-            print('Error: File Not Found: ' + fn_t0)
-            exit(-1)
-        if os.path.isfile(fn_t1) == False:
-            print('Error: File Not Found: ' + fn_t1)
-            exit(-1)
-        if os.path.isfile(fn_mask) == False:
-            print('Error: File Not Found: ' + fn_mask)
-            exit(-1)
-
-        img_t0 = cv2.imread(fn_t0, 1)
-        img_t1 = cv2.imread(fn_t1, 1)
-        mask = cv2.imread(fn_mask, 0)
-
-        mask_r = mask[:, :, np.newaxis]
-
-        img_t0_r = np.asarray(img_t0).astype('f').transpose(2, 0, 1)
-        img_t1_r = np.asarray(img_t1).astype('f').transpose(2, 0, 1)
-        mask_r_ = np.asarray(mask_r > 128).astype('f').transpose(2, 0, 1)
-
-
-        input_ = torch.from_numpy(np.concatenate((img_t0_r, img_t1_r), axis=0))
-        mask_ = torch.from_numpy(mask_r_).long()
-
-        return input_, mask_
-
-    def __len__(self):
-        return len(self.filename)
-
-    def get_random_image(self):
-        idx = np.random.randint(0,len(self))
-        return self.__getitem__(idx)
-
+# Train and Test splits
+TRAIN_VIDEOS = '1 2 3 4 5 8 10 11 13 14 15 16 17 18 19 20 21 22 26 29 30 31 33 35 37 40 41 42 43 44 46 49 51 52 53 54 55 57 59 62 63 65 67 68 70 71 72 73 74 75 78 79 80 83 84 86 87 88 89 90 91 96 98 99 101 102 103 104 105 108 109 110 111 114 115 116 118 121 122 123 124 126 127 128 130 131 133 136 137 138 140 141 143 146 147 148 149 151 '
+TEST_VIDEOS = '0 6 7 9 12 23 24 25 27 28 32 34 36 38 39 45 47 48 50 56 58 60 61 64 66 69 76 77 81 82 85 92 93 94 95 97 100 106 107 112 113 117 119 120 125 129 132 134 135 139 142 144 145 150 '
 
 class vl_cmu_cd_eval(Dataset):
 
     def __init__(self, root,
                  source_image_transform=None, target_image_transform=None,
                  change_transform=None,
+                 split='train',
                  ):
         super(vl_cmu_cd_eval, self).__init__()
+
         self.paths = {'GT':glob(pjoin(root,'*','GT','*.png'))}
+        video_idxs = TRAIN_VIDEOS if split == 'train' else TEST_VIDEOS
+        video_idxs = video_idxs.strip().split(' ')
+        self.paths['GT'] = [path for path in self.paths['GT'] if str(int(path.split('/')[-3])) in video_idxs]
+        print('LOADING {} split of VL-CMU-CD ({} pairs)'.format(split,len(self.paths['GT'])))
         query_paths, ref_paths = [],[]
         for gtpath in self.paths['GT']:
             query_path = gtpath.replace('GT','RGB')
@@ -165,6 +120,7 @@ class vl_cmu_cd_eval(Dataset):
                 'target_image': img_t0_r_,
                 'source_change': mask_binary.squeeze(),
                 'target_change': mask_binary.squeeze(),
+                'flow_map': torch.zeros(2,img_t1_r_.shape[1],img_t1_r_.shape[2]),
                 'source_image_size': (h_r,w_r,3)
                 }
 
@@ -197,7 +153,7 @@ class vl_cmu_cd_eval(Dataset):
         return seg_map_class
 
 if __name__ == '__main__':
-    dataset = vl_cmu_cd_eval(root='/media/rit/GLU-CHANGE-SSD500/dataset/VL-CMU-CD')
+    dataset = vl_cmu_cd_eval(root='/home/rit/E2EChangeDet/dataset/test_datasets/VL-CMU-CD')
     import matplotlib.pyplot as plt
     i=0
     while(1):

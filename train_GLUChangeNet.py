@@ -121,15 +121,22 @@ if __name__ == "__main__":
 
     flow_transform = transforms.Compose([ArrayToTensor()]) # just put channels first and put it to float
     change_transform = transforms.Compose([ArrayToTensor()])
-
-    train_dataset, val_dataset = PreMadeChangeDataset(root=args.training_data_dir,
+    train_datasets = {}
+    train_datasets['synthetic'], val_dataset = PreMadeChangeDataset(root=args.training_data_dir,
                                       source_image_transform=source_img_transforms,
                                       target_image_transform=target_img_transforms,
                                       flow_transform=flow_transform,
                                       co_transform=None,
                                       change_transform=change_transform,
-                                      split=0.99,
+                                      split=0.01,
                                       multi_class =args.multi_class)  # train:val = 95:5
+    train_datasets['vl_cmu_cd'] =vl_cmu_cd_eval(root=os.path.join(args.evaluation_data_dir,'VL-CMU-CD'),
+                                  source_image_transform=source_img_transforms,
+                                  target_image_transform=target_img_transforms,
+                                  change_transform=change_transform,
+                                  split= 'train'
+                                  )
+    train_dataset = torch.utils.data.ConcatDataset(list(train_datasets))
     test_datasets = {}
 
     test_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
@@ -185,6 +192,7 @@ if __name__ == "__main__":
                                   source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
                                   target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
                                   change_transform=change_transform,
+                                  split='test'
                                   )
 
     # Dataloader
