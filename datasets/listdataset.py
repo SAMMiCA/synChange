@@ -186,14 +186,13 @@ class ListChangeDataset(data.Dataset):
 
         if self.num_class ==1: # multi-class classification -> binary classification
             gt_changes[0], gt_changes[1] = gt_changes[0].bool().int(), gt_changes[1].bool().int()
-
         return {'source_image': inputs[0],
                 'target_image': inputs[1],
                 'source_change': gt_changes[0],
                 'target_change': gt_changes[1],
                 'flow_map': gt_flow,
-                # 'correspondence_mask': mask.astype(np.bool) if float(torch.__version__[:3]) >= 1.1
-                # else mask.astype(np.uint8),
+                'correspondence_mask': mask.astype(np.bool) if float(torch.__version__[:3]) >= 1.1
+                else mask.astype(np.uint8),
                 # 'source_image_size': source_size
                 }
 

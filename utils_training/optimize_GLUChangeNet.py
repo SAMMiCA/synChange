@@ -331,7 +331,7 @@ def train_epoch(net,
     running_total_loss = 0
     running_flow_loss = 0
     running_change_loss = 0
-    confmeter = ConfusionMeter(k=net.module.num_class,normalized=False)
+    # confmeter = ConfusionMeter(k=net.module.num_class,normalized=False)
 
     pbar = tqdm(enumerate(train_loader), total=len(train_loader))
     for i, mini_batch in pbar:
@@ -394,10 +394,10 @@ def train_epoch(net,
         Loss_total.backward()
         optimizer.step()
 
-        out_change_orig = torch.nn.functional.interpolate(out_change_orig[-1].detach(),size = (h_original,w_original), mode='bilinear')
-        out_change_orig = out_change_orig.permute(0, 2, 3, 1).reshape(-1, out_change_orig.shape[1])
-        target_change = target_change.detach().permute(0,2,3,1).reshape(-1,1)
-        confmeter.add(out_change_orig,target_change.squeeze().long())
+        # out_change_orig = torch.nn.functional.interpolate(out_change_orig[-1].detach(),size = (h_original,w_original), mode='bilinear')
+        # out_change_orig = out_change_orig.permute(0, 2, 3, 1).reshape(-1, out_change_orig.shape[1])
+        # target_change = target_change.detach().permute(0,2,3,1).reshape(-1,1)
+        # confmeter.add(out_change_orig,target_change.squeeze().long())
         # if i % 100 == 0:
         #     if apply_mask:
         #         vis_img = plot_during_training2(save_path, epoch, i, apply_mask,
@@ -437,12 +437,12 @@ def train_epoch(net,
         writer.add_scalar('train_total_per_iter', Loss_total.item(), n_iter)
 
         n_iter += 1
-        pbar.set_description(
-                'training: R_total_loss: %.3f/%.3f' % (running_total_loss / (i + 1),
-                                             Loss_total.item()))
-        pbar.set_description(
-                'training: R_flow_loss: %.3f/%.3f' % (running_flow_loss / (i + 1),
-                                             Loss_flow.item()))
+        # pbar.set_description(
+        #         'training: R_total_loss: %.3f/%.3f' % (running_total_loss / (i + 1),
+        #                                      Loss_total.item()))
+        # pbar.set_description(
+        #         'training: R_flow_loss: %.3f/%.3f' % (running_flow_loss / (i + 1),
+        #                                      Loss_flow.item()))
         pbar.set_description(
                 'training: R_change_loss: %.3f/%.3f' % (running_change_loss / (i + 1),
                                              Loss_change.item()))
@@ -450,17 +450,21 @@ def train_epoch(net,
     running_change_loss /= len(train_loader)
     running_flow_loss /= len(train_loader)
 
-    conf = torch.FloatTensor(confmeter.value())
-    Acc = 100*(conf.diag().sum() / conf.sum()).item()
-    recall = conf[1,1]/(conf[1,0]+conf[1,1])
-    precision =conf[1,1]/(conf[0,1]+conf[1,1])
-    f1 = 100*2*recall*precision/(recall+precision)
-    IoUs, mIoU = IoU(conf)
-    IoUs, mIoU = 100 * IoUs, 100 * mIoU
+    # conf = torch.FloatTensor(confmeter.value())
+    # Acc = 100*(conf.diag().sum() / conf.sum()).item()
+    # recall = conf[1,1]/(conf[1,0]+conf[1,1])
+    # precision =conf[1,1]/(conf[0,1]+conf[1,1])
+    # f1 = 100*2*recall*precision/(recall+precision)
+    # IoUs, mIoU = IoU(conf)
+    # IoUs, mIoU = 100 * IoUs, 100 * mIoU
 
 
-    return dict(total=running_total_loss,change=running_change_loss,flow=running_flow_loss, accuracy = Acc,
-                IoUs=IoUs, mIoU = mIoU, f1=f1)
+    return dict(total=running_total_loss,change=running_change_loss,flow=running_flow_loss,
+                # accuracy = Acc,
+                # IoUs=IoUs,
+                # mIoU = mIoU,
+                # f1=f1
+                )
 
 
 def validate_epoch(net,
@@ -505,6 +509,7 @@ def validate_epoch(net,
         loss_grid_weights = [0.32, 0.08, 0.02, 0.01, 0.005]
     change_criterion = FocalLoss()
     running_total_loss = 0
+    if not os.path.isdir(save_path): os.mkdir(save_path)
 
     with torch.no_grad():
         pbar = tqdm(enumerate(val_loader), total=len(val_loader))
@@ -578,32 +583,17 @@ def validate_epoch(net,
             # must be both in shape Bx2xHxW
 
             if i % 1000 == 0:
-                if apply_mask:
-                    vis_img = plot_during_training(save_path, epoch, i, apply_mask,
-                                                   h_original, w_original, h_256, w_256,
-                                                   source_image, target_image, source_image_256, target_image_256, div_flow,
-                                                   flow_gt_original, flow_gt_256, output_net=out_flow_orig[-1],
-                                                   output_net_256=out_flow_256[-1],
-                                                   target_change_original=target_change,
-                                                   target_change_256=target_change_256,
-                                                   out_change_orig=out_change_orig,
-                                                   out_change_256=out_change_256,
-                                                   mask=mask, mask_256=mask_256,
-                                                   return_img=True)
-                    writer.add_image('val_warping_per_iter', vis_img, n_iter)
-
-                else:
-                    vis_img = plot_during_training(save_path, epoch, i, apply_mask,
-                                                   h_original, w_original, h_256, w_256,
-                                                   source_image, target_image, source_image_256, target_image_256, div_flow,
-                                                   flow_gt_original, flow_gt_256, output_net=out_flow_orig[-1],
-                                                   output_net_256=out_flow_256[-1],
-                                                   target_change_original=target_change,
-                                                   target_change_256=target_change_256,
-                                                   out_change_orig=out_change_orig,
-                                                   out_change_256=out_change_256,
-                                                   return_img=True)
-                    writer.add_image('val_warping_per_iter', vis_img, n_iter)
+                vis_img = plot_during_training2(save_path, epoch, i, False,
+                                               h_original, w_original, h_256, w_256,
+                                               source_image, target_image, source_image_256, target_image_256, div_flow,
+                                               flow_gt_original, flow_gt_256, output_net=out_flow_orig[-1],
+                                               output_net_256=out_flow_256[-1],
+                                               target_change_original=target_change,
+                                               target_change_256=target_change_256,
+                                               out_change_orig=out_change_orig,
+                                               out_change_256=out_change_256,
+                                               return_img=True)
+                writer.add_image('val_warping_per_iter', vis_img, n_iter)
 
             # ''' Evaluate Change '''
             # # calculating the validation EPE
@@ -622,7 +612,7 @@ def validate_epoch(net,
 
             running_total_loss += Loss.item()
             pbar.set_description(
-                ' validation R_total_loss: %.3f/%.3f' % (running_total_loss / (i + 1),
+                ' val total_loss: %.1f/%.1f' % (running_total_loss / (i + 1),
                                              Loss.item()))
         mean_epe = torch.mean(EPE_array, dim=1)
 
@@ -635,9 +625,9 @@ def validate_epoch(net,
     IoUs, mIoU = 100 * IoUs, 100 * mIoU
 
 
-    # return dict(total=running_total_loss,change=running_change_loss,flow=running_flow_loss, accuracy = Acc,
-    #             IoUs=IoUs, mIoU = mIoU, f1=f1)
-    return running_total_loss / len(val_loader), mean_epe[0].item(), mean_epe[1].item(), mean_epe[2].item(), mean_epe[3].item()
+    return dict(total=running_total_loss,mEPEs=mean_epe, accuracy = Acc,
+                IoUs=IoUs, mIoU = mIoU, f1=f1)
+    return running_total_loss / len(val_loader),
 
 
 

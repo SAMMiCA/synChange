@@ -66,6 +66,8 @@ if __name__ == "__main__":
                         help='Pseudo-RNG seed')
     parser.add_argument('--split_ratio', type=float, default=0.99,
                         help='train/val split ratio')
+    parser.add_argument('--plot_interval', type=int, default=10,
+                        help='plot every N iteration')
     args = parser.parse_args()
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -308,11 +310,6 @@ if __name__ == "__main__":
         train_writer.add_scalar('learning_rate', scheduler.get_last_lr()[0], epoch)
         print(colored('==> ', 'green') + 'Train average loss:', train_loss['total'])
 
-        print('          F1: {:.2f}, Accuracy: {:.2f} '.format(train_loss['f1'],train_loss['accuracy']))
-        print('          Static  |   Change   |   mIoU ')
-        print('          %7.2f %7.2f %7.2f ' %
-              (train_loss['IoUs'][0], train_loss['IoUs'][-1], train_loss['mIoU']))
-
         save_checkpoint({'epoch': epoch + 1,
                          'state_dict': model.module.state_dict(),
                          'optimizer': optimizer.state_dict(),
@@ -325,21 +322,24 @@ if __name__ == "__main__":
                        save_path=os.path.join(save_path, dataset_name),
                        writer=val_writer,
                        div_flow=args.div_flow,
-                       plot_interval=10)
+                       plot_interval=args.plot_interval)
             print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
             print('          Static  |   Change   |   mIoU ')
             print('          %7.2f %7.2f %7.2f ' %
                   (result['IoUs'][0], result['IoUs'][-1], result['mIoU']))
 
 
-        '''
+
         # Validation
-        val_loss_grid, val_mean_epe, val_mean_epe_H_8, val_mean_epe_32, val_mean_epe_16 = \
+        result = \
             validate_epoch(model, val_dataloader, device, epoch=epoch,
                            save_path=os.path.join(save_path, 'val'),
                            writer = val_writer,
                            div_flow=args.div_flow,
                            loss_grid_weights=weights_loss_coeffs)
+        val_loss_grid, val_mean_epe, val_mean_epe_H_8, val_mean_epe_32, val_mean_epe_16  = \
+            result['total'],result['mEPEs'][0].item(), result['mEPEs'][1].item(), result['mEPEs'][2].item(), result['mEPEs'][3].item()
+
         print(colored('==> ', 'blue') + 'Val average grid loss :',
               val_loss_grid)
         print('mean EPE is {}'.format(val_mean_epe))
@@ -351,16 +351,21 @@ if __name__ == "__main__":
         val_writer.add_scalar('validation images: mean EPE_from_reso_32', val_mean_epe_32, epoch)
         val_writer.add_scalar('validation images: mean EPE_from_reso_16', val_mean_epe_16, epoch)
         val_writer.add_scalar('validation images: val loss', val_loss_grid, epoch)
+
+        print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
+        print('          Static  |   Change   |   mIoU ')
+        print('          %7.2f %7.2f %7.2f ' %
+              (result['IoUs'][0], result['IoUs'][-1], result['mIoU']))
         print(colored('==> ', 'blue') + 'finished epoch :', epoch + 1)
 
         # save checkpoint for each epoch and a fine called best_model so far
-        is_best = val_mean_epe < best_val
-        best_val = min(val_mean_epe, best_val)
+        is_best = result['f1'] < best_val
+        best_val = min(result['f1'], best_val)
         save_checkpoint({'epoch': epoch + 1,
                          'state_dict': model.module.state_dict(),
                          'optimizer': optimizer.state_dict(),
                          'scheduler': scheduler.state_dict(),
                          'best_loss': best_val},
                         is_best, save_path, 'epoch_{}.pth'.format(epoch + 1))
-        '''
+
     print(args.seed, 'Training took:', time.time()-train_started, 'seconds')

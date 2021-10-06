@@ -22,3 +22,4 @@ pycocotools
 flow_vis
 tensorboardx
 natsort
+torchnet

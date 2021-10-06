@@ -117,12 +117,12 @@ class vl_cmu_cd_eval(Dataset):
 
         if self.change_transform is not None:
             mask_binary = self.change_transform(mask_binary)
-
         return {'source_image': img_t1_r_,
                 'target_image': img_t0_r_,
                 'source_change': mask_binary.squeeze().int(),
                 'target_change': mask_binary.squeeze().int(),
                 'flow_map': torch.zeros(2,img_t1_r_.shape[1],img_t1_r_.shape[2]),
+                'correspondence_mask': torch.ones_like(mask_binary.squeeze()).numpy().astype(np.bool),
                 #'source_image_size': (h_r,w_r,3)
                 }
 
