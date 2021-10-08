@@ -20,7 +20,7 @@ from utils_training.utils_CNN import load_checkpoint, save_checkpoint, boolean_s
 from tensorboardX import SummaryWriter
 from utils.image_transforms import ArrayToTensor
 from datasets.vl_cmu_cd import vl_cmu_cd_eval
-from datasets.pcd import gsv_eval, tsunami_eval
+from datasets.pcd import gsv_eval, tsunami_eval,pcd_5fold
 from datasets.changesim import changesim_eval
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
@@ -136,6 +136,13 @@ if __name__ == "__main__":
                                   split= 'train',
                                   img_size = (520,520)
                                   )
+    train_datasets['pcd'] =pcd_5fold(root=os.path.join(args.evaluation_data_dir,'pcd_5cv'),
+                                  source_image_transform=source_img_transforms,
+                                  target_image_transform=target_img_transforms,
+                                  change_transform=change_transform,
+                                  split= 'train',
+                                  img_size = (520,520)
+                                  )
     for k, d in train_datasets.items():
         print('LOADING train split of {} ({} pairs)'.format(k,len(d)))
 
@@ -193,7 +200,13 @@ if __name__ == "__main__":
     #                               co_transform=co_transform,
     #                               change_transform=change_transform,
     #                               )
-    test_datasets['vl_cmu_cd'] = vl_cmu_cd_eval(root=os.path.join(args.evaluation_data_dir,'VL-CMU-CD'),
+    # test_datasets['vl_cmu_cd'] = vl_cmu_cd_eval(root=os.path.join(args.evaluation_data_dir,'VL-CMU-CD'),
+    #                               source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               change_transform=change_transform,
+    #                               split='test'
+    #                               )
+    test_datasets['pcd'] = vl_cmu_cd_eval(root=os.path.join(args.evaluation_data_dir,'pcd_5cv'),
                                   source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
                                   target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
                                   change_transform=change_transform,
