@@ -109,9 +109,9 @@ class pcd_5fold(Dataset):
 
         return {'source_image': img_t1_r_,
                 'target_image': img_t0_r_,
-                'source_change': mask_r.squeeze(),
-                'target_change': mask_r.squeeze(),
-                'source_image_size': (h_r,w_r,3),
+                'source_change': mask_r.squeeze().int(),
+                'target_change': mask_r.squeeze().int(),
+                #'source_image_size': (h_r,w_r,3),
                 'flow_map': torch.zeros(2, img_t1_r_.shape[1], img_t1_r_.shape[2]),
                 'correspondence_mask': torch.ones_like(mask_r.squeeze()).numpy().astype(np.bool),
                 }
