@@ -15,7 +15,7 @@ def iou_segmentation(outputs: torch.Tensor, labels: torch.Tensor):
     iou = (intersection + SMOOTH) / (union + SMOOTH)
     return iou.mean()  # Or thresholded.mean() if you are interested in average across the batch
 
-def EPE(input_flow, target_flow, sparse=False, mean=True, sum=False):
+def EPE(input_flow, target_flow, sparse=False, mean=True, sum=False,valid_flow=None):
 
     EPE_map = torch.norm(target_flow-input_flow, 2, 1)
     batch_size = EPE_map.size(0)
@@ -24,6 +24,8 @@ def EPE(input_flow, target_flow, sparse=False, mean=True, sum=False):
         mask = (target_flow[:,0] == 0) & (target_flow[:,1] == 0)
 
         EPE_map = EPE_map[~mask]
+    if valid_flow is not None:
+        EPE_map = valid_flow*EPE_map
     if mean:
         return EPE_map.mean()
     elif sum:
@@ -110,7 +112,7 @@ def sparse_max_pool(input, size):
 
 
 def multiscaleEPE(network_output, target_flow, robust_L1_loss=False, mask=None, weights=None,
-                  sparse=False, mean=False):
+                  sparse=False, mean=False, use_flow=None):
     '''
     here the ground truth flow is given at the higest resolution and it is just interpolated
     at the different sized (without rescaling it)
@@ -121,7 +123,7 @@ def multiscaleEPE(network_output, target_flow, robust_L1_loss=False, mask=None, 
     :return:
     '''
 
-    def one_scale(output, target, sparse, robust_L1_loss=False, mask=None, mean=False):
+    def one_scale(output, target, sparse, robust_L1_loss=False, mask=None, mean=False, use_flow=None):
         b, _, h, w = output.size()
         if sparse:
             target_scaled = sparse_max_pool(target, (h, w))
@@ -146,9 +148,9 @@ def multiscaleEPE(network_output, target_flow, robust_L1_loss=False, mask=None, 
                 return L1_charbonnier_loss(output, target_scaled, sparse, mean=mean, sum=False)
         else:
             if mask is not None:
-                return EPE(output * mask.float(), target_scaled * mask.float(), sparse, mean=mean, sum=False)
+                return EPE(output * mask.float(), target_scaled * mask.float(), sparse, mean=mean, sum=False,valid_flow=use_flow)
             else:
-                return EPE(output, target_scaled, sparse, mean=mean, sum=False)
+                return EPE(output, target_scaled, sparse, mean=mean, sum=False,valid_flow=use_flow)
 
     if type(network_output) not in [tuple, list]:
         network_output = [network_output]
@@ -159,7 +161,7 @@ def multiscaleEPE(network_output, target_flow, robust_L1_loss=False, mask=None, 
     loss = 0
     for output, weight in zip(network_output, weights):
         # from smallest size to biggest size (last one is a quarter of input image size
-        loss += weight * one_scale(output, target_flow, sparse, robust_L1_loss=robust_L1_loss, mask=mask, mean=mean)
+        loss += weight * one_scale(output, target_flow, sparse, robust_L1_loss=robust_L1_loss, mask=mask, mean=mean, use_flow=use_flow)
     return loss
 
 

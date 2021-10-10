@@ -12,7 +12,7 @@ def prepare_trainval(args,
 
     train_datasets, val_datasets = {},{}
 
-    train_synthetic_dataset, val_synthetic_dataset = PreMadeChangeDataset(root=args.training_data_dir,
+    train_synthetic_dataset, val_synthetic_dataset = PreMadeChangeDataset(root=os.path.join(args.training_data_dir,'synthetic'),
                                                                     source_image_transform=source_img_transforms,
                                                                     target_image_transform=target_img_transforms,
                                                                     flow_transform=flow_transform,
@@ -43,6 +43,36 @@ def prepare_trainval(args,
                                       change_transform=change_transform,
                                       split= 'train',
                                       img_size = (520,520)
+                                      )
+    if 'changesim_normal' in args.trainset_list:
+        train_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.training_data_dir,'Query_Seq_Train'),
+                                      source_image_transform=source_img_transforms,
+                                      target_image_transform=target_img_transforms,
+                                      change_transform=change_transform,
+                                      multi_class=args.multi_class,
+                                      mapname='*',
+                                      seqname='Seq_0',
+                                      img_size=(520, 520)
+                                      )
+    if 'changesim_dust' in args.trainset_list:
+        train_datasets['changesim_dust'] = changesim_eval(root=os.path.join(args.training_data_dir,'Query_Seq_Train'),
+                                      source_image_transform=source_img_transforms,
+                                      target_image_transform=target_img_transforms,
+                                      change_transform=change_transform,
+                                      multi_class=args.multi_class,
+                                      mapname='*',
+                                      seqname='Seq_0_dust',
+                                      img_size=(520, 520)
+                                      )
+    if 'changesim_dark' in args.trainset_list:
+        train_datasets['changesim_dark'] = changesim_eval(root=os.path.join(args.training_data_dir,'Query_Seq_Train'),
+                                      source_image_transform=source_img_transforms,
+                                      target_image_transform=target_img_transforms,
+                                      change_transform=change_transform,
+                                      multi_class=args.multi_class,
+                                      mapname='*',
+                                      seqname='Seq_0_dark',
+                                      img_size=(520, 520)
                                       )
 
     for k, d in train_datasets.items():
@@ -90,43 +120,38 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                       split= 'test',
                                       img_size = (520,520)
                                       )
-    if 'tunnel_normal' in args.testset_list:
-        test_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
-                                      source_image_transform=source_img_transforms,
-                                      target_image_transform=target_img_transforms,
-                                      change_transform=change_transform,
-                                      multi_class=args.multi_class,
-                                      split='Seq_0'
-                                      )
-    if 'tunnel_dark' in args.testset_list:
-        test_datasets['changesim_dark'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
-                                      source_image_transform=source_img_transforms,
-                                      target_image_transform=target_img_transforms,
-                                      change_transform=change_transform,
-                                      multi_class=args.multi_class,
-                                      mapname='Tunnel',
-                                      split='Seq_0_dark'
-                                      )
-    if 'tunnel_dust' in args.testset_list:
-        test_datasets['tunnel_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
-                                      source_image_transform=source_img_transforms,
-                                      target_image_transform=target_img_transforms,
-                                      change_transform=change_transform,
-                                      multi_class=args.multi_class,
-                                      mapname='Tunnel',
-                                      split='Seq_0_dust'
-                                      )
     if 'changesim_normal' in args.testset_list:
-        test_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
+        test_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'Query_Seq_Test'),
                                       source_image_transform=source_img_transforms,
                                       target_image_transform=target_img_transforms,
                                       change_transform=change_transform,
                                       multi_class=args.multi_class,
-                                      mapname='Storage',
-                                      split='Seq_0'
+                                      mapname='*',
+                                      seqname='Seq_0'
                                       )
+    if 'changesim_dust' in args.testset_list:
+        test_datasets['changesim_dust'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'Query_Seq_Test'),
+                                      source_image_transform=source_img_transforms,
+                                      target_image_transform=target_img_transforms,
+                                      change_transform=change_transform,
+                                      multi_class=args.multi_class,
+                                      mapname='*',
+                                      seqname='Seq_0_dust'
+                                      )
+    if 'changesim_dark' in args.testset_list:
+        test_datasets['changesim_dark'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'Query_Seq_Test'),
+                                      source_image_transform=source_img_transforms,
+                                      target_image_transform=target_img_transforms,
+                                      change_transform=change_transform,
+                                      multi_class=args.multi_class,
+                                      mapname='*',
+                                      seqname='Seq_0_dark'
+                                      )
+    total_len = 0
     for k, d in test_datasets.items():
         print('LOADING test split of {} ({} pairs)'.format(k,len(d)))
+        total_len+=len(d)
+    print('# of test samples in total: ({} pairs)'.format(total_len))
 
     test_dataloaders = {k:DataLoader(test_dataset,batch_size=args.batch_size,shuffle=False,num_workers=args.n_threads)
                         for k, test_dataset in test_datasets.items()}

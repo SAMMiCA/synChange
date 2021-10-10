@@ -193,6 +193,8 @@ class ListChangeDataset(data.Dataset):
                 'flow_map': gt_flow,
                 'correspondence_mask': mask.astype(np.bool) if float(torch.__version__[:3]) >= 1.1
                 else mask.astype(np.uint8),
+                'use_flow': torch.ones(1)
+
                 # 'source_image_size': source_size
                 }
 

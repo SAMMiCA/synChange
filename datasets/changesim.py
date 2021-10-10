@@ -65,14 +65,16 @@ class changesim_eval(Dataset):
                  source_image_transform=None, target_image_transform=None,
                  change_transform=None,
                  multi_class = False,
-                 mapname='Tunnel',
-                 split='Seq_0',
+                 mapname='*',
+                 seqname='Seq_0',
+                 img_size=(640, 480)
                  ):
           # 파일 생성일
 
         super(changesim_eval, self).__init__()
 
-        self.paths = {'GT':natsorted(glob(pjoin(root,mapname,'*',split,'change_segmentation','*.png')))}
+        self.paths = {'GT':natsorted(glob(pjoin(root,mapname,seqname,'change_segmentation','*.png')))}
+        self.paths['GT'] = [fn_mask for fn_mask in self.paths['GT'] if os.path.isfile(fn_mask)]
         query_paths, ref_paths = [],[]
         for gtpath in self.paths['GT']:
             query_path = gtpath.replace('change_segmentation','rgb')
@@ -88,30 +90,34 @@ class changesim_eval(Dataset):
         self.seghelper = SegHelper()
         self.colors = self.seghelper.idx2color
         self.num_class = 5 if multi_class else 1
-        self.split = split
+        self.seqname = seqname
+        self.img_size = img_size
     def __getitem__(self, index):
 
         fn_mask = self.paths['GT'][index]
         fn_mask_npy = self.paths['GT'][index].replace('change_segmentation','GT_npy')
         fn_mask_npy = fn_mask_npy.replace('png','npy')
-        fn_t0 = self.paths['query'][index]
-        if 'fire' in self.split: index= index+5
-        fn_t1 = self.paths['ref'][index]
+        fn_t0 = self.paths['ref'][index]
+        if 'fire' in self.seqname: index= index+5
+        fn_t1 = self.paths['query'][index]
 
         if os.path.isfile(fn_t0) == False:
             print('Error: File Not Found: ' + fn_t0)
-            exit(-1)
+            import pdb; pdb.set_trace()
+            # exit(-1)
         if os.path.isfile(fn_t1) == False:
             print('Error: File Not Found: ' + fn_t1)
-            exit(-1)
+            import pdb; pdb.set_trace()
+            # exit(-1)
         if os.path.isfile(fn_mask) == False:
             print('Error: File Not Found: ' + fn_mask)
-            exit(-1)
+            import pdb; pdb.set_trace()
+            # exit(-1)
         if os.path.isfile(fn_mask_npy) == False:
             print('Error: File Not Found: ' + fn_mask_npy)
             mask_color = cv2.imread(fn_mask, 1)
             if not os.path.isdir(os.path.dirname(fn_mask_npy)):
-                os.mkdir(os.path.dirname(fn_mask_npy))
+                os.makedirs(os.path.dirname(fn_mask_npy),exist_ok=True)
             mask_color = np.asarray(mask_color).astype('uint8')
             mask = self.colormap2classmap(mask_color[:,:,[2,1,0]]) # (h,w,1)
             np.save(fn_mask_npy,mask.numpy())
@@ -126,9 +132,10 @@ class changesim_eval(Dataset):
         img_t1 = cv2.imread(fn_t1, 1)
         img_t1 = cv2.cvtColor(img_t1,cv2.COLOR_BGR2RGB)
 
-        w, h, c = img_t0.shape
-        w_r = 360 # int(256 * max(w / 256, 1))
-        h_r = 480 # int(256 * max(h / 256, 1))
+        # w, h, c = img_t0.shape
+        # w_r = 360 # int(256 * max(w / 256, 1))
+        # h_r = 480 # int(256 * max(h / 256, 1))
+        h_r, w_r = self.img_size
 
         img_t0_r = cv2.resize(img_t0, (h_r, w_r))
         img_t1_r = cv2.resize(img_t1, (h_r, w_r))
@@ -166,15 +173,18 @@ class changesim_eval(Dataset):
 
 
 
-        return {'source_image': img_t1_r_,
-                'target_image': img_t0_r_,
-                'source_change': mask_r_.squeeze(),
-                'target_change': mask_r_.squeeze(),
-                'source_image_size': (h_r,w_r,3)
+        return {'source_image': img_t0_r_,
+                'target_image': img_t1_r_,
+                'source_change': mask_r_.squeeze().int(),
+                'target_change': mask_r_.squeeze().int(),
+                # 'source_image_size': (h_r,w_r,3),
+                'flow_map': torch.zeros(2, img_t1_r_.shape[1], img_t1_r_.shape[2]),
+                'correspondence_mask': torch.ones_like(mask_r_.squeeze()).numpy().astype(np.bool),
+                'use_flow': torch.zeros(1)
                 }
 
     def __len__(self):
-        if 'fire' in self.split:
+        if 'fire' in self.seqname:
             return len(self.paths['ref'])-5
 
         return len(self.paths['GT'])

@@ -336,7 +336,6 @@ def train_epoch(net,
     pbar = tqdm(enumerate(train_loader), total=len(train_loader))
     for i, mini_batch in pbar:
         optimizer.zero_grad()
-
         # pre-process the data
         source_image, target_image, source_image_256, target_image_256 = \
             pre_process_data(mini_batch['source_image'],
@@ -349,7 +348,7 @@ def train_epoch(net,
         out_dict = net(target_image, source_image, target_image_256, source_image_256)
         out_flow_256, out_flow_orig = out_dict['flow']
         out_change_256, out_change_orig = out_dict['change']
-
+        use_flow = mini_batch['use_flow'][...,None].to(device)
         # At original resolution
         flow_gt_original = mini_batch['flow_map'].to(device)
         if flow_gt_original.shape[1] != 2:
@@ -373,19 +372,19 @@ def train_epoch(net,
         if apply_mask:
             mask = mini_batch['correspondence_mask'].to(device)  # bxhxw, torch.uint8
             Loss_flow = multiscaleEPE(out_flow_orig, flow_gt_original, weights=weights_original, sparse=sparse,
-                                 mean=False, mask=mask, robust_L1_loss=robust_L1_loss)
+                                 mean=False, mask=mask, robust_L1_loss=robust_L1_loss,use_flow=use_flow)
             if sparse:
                 mask_256 = sparse_max_pool(mask.unsqueeze(1).float(), (256, 256)).squeeze(1).byte() # bx256x256
             else:
                 mask_256 = F.interpolate(mask.unsqueeze(1).float(), (256, 256), mode='bilinear',
                                            align_corners=False).squeeze(1).byte() # bx256x256
             Loss_flow += multiscaleEPE(out_flow_256, flow_gt_256, weights=weights_256, sparse=sparse,
-                                 mean=False, mask=mask_256, robust_L1_loss=robust_L1_loss)
+                                 mean=False, mask=mask_256, robust_L1_loss=robust_L1_loss,use_flow=use_flow)
         else:
             Loss_flow = multiscaleEPE(out_flow_orig, flow_gt_original, weights=weights_original, sparse=False,
-                                 mean=False, robust_L1_loss=robust_L1_loss)
+                                 mean=False, robust_L1_loss=robust_L1_loss,use_flow=use_flow)
             Loss_flow += multiscaleEPE(out_flow_256, flow_gt_256, weights=weights_256, sparse=False,
-                                 mean=False, robust_L1_loss=robust_L1_loss)
+                                 mean=False, robust_L1_loss=robust_L1_loss,use_flow=use_flow)
         # import pdb; pdb.set_trace()
         Loss_change = multiscaleCE(out_change_256,target_change_256,weights=weights_256)
         Loss_change +=multiscaleCE(out_change_orig, target_change, weights=weights_original)
