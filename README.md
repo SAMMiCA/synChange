@@ -60,7 +60,7 @@ python train_GLUChangeNet.py \
 --n_threads 4 --plot_interval 1 --split_ratio 0.90 --split2_ratio 0.5 \
 --trainset_list synthetic vl_cmu_cd \
 --testset_list vl_cmu_cd \
---lr 0.0002 --n_epoch 25
+--lr 0.0002 --n_epoch 25 \
 --name_exp joint_synthetic_vl-cmu-cd
 
 
@@ -74,7 +74,7 @@ cd ../GLU-ChangeNet-Pytorch
 --n_threads 4 --plot_interval 1 --split_ratio 0.90 --split2_ratio 0.5 \
 --trainset_list synthetic \
 --testset_list changesim \
---lr 0.0002 --n_epoch 25
---name_exp train_synthetic_test_changesim_multiclass
+--lr 0.0002 --n_epoch 25 \
+--name_exp train_synthetic_test_changesim_multiclass \
 --multi_class
 ```
