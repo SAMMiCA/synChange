@@ -54,18 +54,27 @@ sudo scp -r rit@143.248.151.68:/home/rit/E2EChangeDet/dataset/test_datasets .
 ```bash
 cd ../GLU-ChangeNet-Pytorch
 python train_GLUChangeNet.py \
---training_data_dir ../dataset/train_datasets/synthetic \
+--training_data_dir ../dataset/train_datasets/synthetic_dataset \
 --evaluation_data_dir ../dataset/test_datasets \
---pretrained pre_trained_models/GLUNet_DPED_CityScape_ADE.pth
---resume ''
+--pretrained pre_trained_models/GLUNet_DPED_CityScape_ADE.pth \
+--n_threads 4 --plot_interval 1 --split_ratio 0.90 --split2_ratio 0.5 \
+--trainset_list synthetic vl_cmu_cd \
+--testset_list vl_cmu_cd \
+--lr 0.0002 --n_epoch 25
+--name_exp joint_synthetic_vl-cmu-cd
+
+
 ```
 # Init Training for Multi-class Change Detection
 ```bash
 cd ../GLU-ChangeNet-Pytorch
-python train_GLUChangeNet.py \
---training_data_dir ../dataset/train_datasets/synthetic \
+--training_data_dir ../dataset/train_datasets/synthetic_dataset \
 --evaluation_data_dir ../dataset/test_datasets \
 --pretrained pre_trained_models/GLUNet_DPED_CityScape_ADE.pth \
---resume '' \
+--n_threads 4 --plot_interval 1 --split_ratio 0.90 --split2_ratio 0.5 \
+--trainset_list synthetic \
+--testset_list changesim \
+--lr 0.0002 --n_epoch 25
+--name_exp train_synthetic_test_changesim_multiclass
 --multi_class
 ```
