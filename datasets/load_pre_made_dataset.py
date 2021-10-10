@@ -39,7 +39,7 @@ def make_dataset(dir, split=None, dataset_name=None):
             images.append([[img1, img2], flow_map])
     return split2list(images, split, default_split=0.97)
 
-def make_change_dataset(dir, split=None, dataset_name=None):
+def make_change_dataset(dir, split=None):
     '''Will search for triplets that go by the pattern '[name]_img1.ppm  [name]_img2.ppm  in folder images and
       [name]_flow.flo' in folder flow '''
     images = []
@@ -70,6 +70,7 @@ def make_change_dataset(dir, split=None, dataset_name=None):
 
     return split2list(images, split, default_split=0.97)
 
+
 def PreMadeDataset(root, source_image_transform=None, target_image_transform=None, flow_transform=None,
                    co_transform=None, split=None):
     # that is only reading and loading the data and applying transformations to both datasets
@@ -96,9 +97,11 @@ def PreMadeDataset(root, source_image_transform=None, target_image_transform=Non
     return train_dataset, test_dataset
 
 def PreMadeChangeDataset(root, source_image_transform=None, target_image_transform=None, flow_transform=None,
-                   co_transform=None, change_transform=None, split=None, multi_class=False):
+                   co_transform=None, change_transform=None, split=None, split2=None,multi_class=False):
 
     train_list, test_list = make_change_dataset(root, split)
+    if split2 is not None: # use only small amount of testset
+        test_list, _ = split2list(test_list,split2)
     print('Loading dataset at {}'.format(root))
 
     train_dataset = ListChangeDataset(root, train_list, source_image_transform=source_image_transform,

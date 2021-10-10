@@ -22,6 +22,7 @@ from utils.image_transforms import ArrayToTensor
 from datasets.vl_cmu_cd import vl_cmu_cd_eval
 from datasets.pcd import gsv_eval, tsunami_eval,pcd_5fold
 from datasets.changesim import changesim_eval
+from datasets.prepare_dataloaders import prepare_trainval,prepare_test
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 
@@ -45,6 +46,10 @@ if __name__ == "__main__":
                        help='path to resume model (load both model and optimizer params')
     parser.add_argument('--multi_class', action='store_true',
                         help='if true, do multi-class change detection')
+    parser.add_argument('--trainset_list', nargs='+')
+    parser.add_argument('--testset_list', nargs='+')
+    parser.add_argument('--valset_list', nargs='+', default=['synthetic'])
+
 
     # Optimization parameters
     parser.add_argument('--lr', type=float, default=0.0002, help='learning rate')
@@ -66,19 +71,30 @@ if __name__ == "__main__":
                         help='Pseudo-RNG seed')
     parser.add_argument('--split_ratio', type=float, default=0.99,
                         help='train/val split ratio')
+    parser.add_argument('--split2_ratio', type=float, default=0.99,
+                        help='val/not-used split ratio (if 0.9, use 90% of val samples)')
     parser.add_argument('--plot_interval', type=int, default=10,
                         help='plot every N iteration')
+    parser.add_argument('--milestones', nargs='+', type=int,
+                        default=[12,20,23], # for 25 epoch
+                        help='schedule for learning rate decrease')
+
     args = parser.parse_args()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print('device:{}'.format(device))
+    print('-----------------------Arguments-----------------------------')
+    for arg in vars(args):
+        print('{}:{}'.format(arg, getattr(args, arg)))
+    print('-------------------------------------------------------------')
+
+    # set seed
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(device)
 
-    # datasets, pre-processing of the images is done within the network function !
-    # source_img_transforms = transforms.Compose([ArrayToTensor(get_float=False)])
-    # target_img_transforms = transforms.Compose([ArrayToTensor(get_float=False)])
+
+    # transforms
     source_img_transforms = A.Compose([
         A.ColorJitter(p=0.5),
         A.RandomShadow(shadow_roi=(0,0,1,1), p=0.5),
@@ -111,45 +127,53 @@ if __name__ == "__main__":
                  A.Compose([]),
                  ]),
         ToTensorV2()])
-    co_transform = A.Compose([
-        A.RandomCrop(height=224,width=320),
-        A.Resize(height=480,width=640)
-    ])
-    # If synthetic pairs were already created and saved to disk, run instead of 'train_dataset' the following.
-    # and replace args.training_data_dir by the root to folders containing images/ and flow/
-
+    co_transform = None
+    # for panoramic images
+    # co_transform = A.Compose([
+    #     A.RandomCrop(height=224,width=320),
+    #     A.Resize(height=480,width=640)
+    # ])
     flow_transform = transforms.Compose([ArrayToTensor()]) # just put channels first and put it to float
     change_transform = transforms.Compose([ArrayToTensor()])
-    train_datasets = {}
-    train_datasets['synthetic'], val_dataset = PreMadeChangeDataset(root=args.training_data_dir,
-                                      source_image_transform=source_img_transforms,
-                                      target_image_transform=target_img_transforms,
-                                      flow_transform=flow_transform,
-                                      co_transform=None,
-                                      change_transform=change_transform,
-                                      split=args.split_ratio,
-                                      multi_class =args.multi_class)  # train:val = 95:5
-    train_datasets['vl_cmu_cd'] =vl_cmu_cd_eval(root=os.path.join(args.evaluation_data_dir,'VL-CMU-CD'),
-                                  source_image_transform=source_img_transforms,
-                                  target_image_transform=target_img_transforms,
-                                  change_transform=change_transform,
-                                  split= 'train',
-                                  img_size = (520,520)
-                                  )
-    train_datasets['pcd'] =pcd_5fold(root=os.path.join(args.evaluation_data_dir,'pcd_5cv'),
-                                  source_image_transform=source_img_transforms,
-                                  target_image_transform=target_img_transforms,
-                                  change_transform=change_transform,
-                                  split= 'train',
-                                  img_size = (520,520)
-                                  )
-    for k, d in train_datasets.items():
-        print('LOADING train split of {} ({} pairs)'.format(k,len(d)))
 
-    train_dataset = torch.utils.data.ConcatDataset([ d for k,d in train_datasets.items()])
-    print('# of training samples in total: ({} pairs)'.format(len(train_dataset)))
+    # dataloaders
+    train_dataloader, val_dataloader = prepare_trainval(args, source_img_transforms, target_img_transforms,
+                     flow_transform, co_transform, change_transform)
+    test_dataloaders = prepare_test(args, source_img_transforms=transforms.Compose([ArrayToTensor(get_float=False)]),
+                                    target_img_transforms=transforms.Compose([ArrayToTensor(get_float=False)]),
+                     flow_transform=flow_transform, co_transform=None, change_transform=change_transform)
 
-    test_datasets = {}
+    # train_datasets = {}
+    # train_datasets['synthetic'], val_dataset = PreMadeChangeDataset(root=args.training_data_dir,
+    #                                   source_image_transform=source_img_transforms,
+    #                                   target_image_transform=target_img_transforms,
+    #                                   flow_transform=flow_transform,
+    #                                   co_transform=None,
+    #                                   change_transform=change_transform,
+    #                                   split=args.split_ratio,
+    #                                   split2=args.split2_ratio,
+    #                                   multi_class =args.multi_class)  # train:val = 95:5
+    # train_datasets['vl_cmu_cd'] =vl_cmu_cd_eval(root=os.path.join(args.evaluation_data_dir,'VL-CMU-CD'),
+    #                               source_image_transform=source_img_transforms,
+    #                               target_image_transform=target_img_transforms,
+    #                               change_transform=change_transform,
+    #                               split= 'train',
+    #                               img_size = (520,520)
+    #                               )
+    # # train_datasets['pcd'] =pcd_5fold(root=os.path.join(args.evaluation_data_dir,'pcd_5cv'),
+    # #                               source_image_transform=source_img_transforms,
+    # #                               target_image_transform=target_img_transforms,
+    # #                               change_transform=change_transform,
+    # #                               split= 'train',
+    # #                               img_size = (520,520)
+    # #                               )
+    # for k, d in train_datasets.items():
+    #     print('LOADING train split of {} ({} pairs)'.format(k,len(d)))
+    #
+    # train_dataset = torch.utils.data.ConcatDataset([ d for k,d in train_datasets.items()])
+    # print('# of training samples in total: ({} pairs)'.format(len(train_dataset)))
+
+    # test_datasets = {}
 
     # test_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'ChangeSim'),
     #                               source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
@@ -206,28 +230,28 @@ if __name__ == "__main__":
     #                               change_transform=change_transform,
     #                               split='test'
     #                               )
-    test_datasets['pcd'] = vl_cmu_cd_eval(root=os.path.join(args.evaluation_data_dir,'pcd_5cv'),
-                                  source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
-                                  change_transform=change_transform,
-                                  split='test'
-                                  )
-    for k, d in test_datasets.items():
-        print('LOADING test split of {} ({} pairs)'.format(k,len(d)))
+    # test_datasets['pcd'] = vl_cmu_cd_eval(root=os.path.join(args.evaluation_data_dir,'pcd_5cv'),
+    #                               source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    #                               change_transform=change_transform,
+    #                               split='test'
+    #                               )
+    # for k, d in test_datasets.items():
+    #     print('LOADING test split of {} ({} pairs)'.format(k,len(d)))
 
     # Dataloader
-    train_dataloader = DataLoader(train_dataset,
-                                  batch_size=args.batch_size,
-                                  shuffle=True,
-                                  num_workers=args.n_threads,
-                                  pin_memory=True)
-    val_dataloader = DataLoader(val_dataset,
-                                batch_size=args.batch_size,
-                                shuffle=True,
-                                num_workers=args.n_threads)
+    # train_dataloader = DataLoader(train_dataset,
+    #                               batch_size=args.batch_size,
+    #                               shuffle=True,
+    #                               num_workers=args.n_threads,
+    #                               pin_memory=True)
+    # val_dataloader = DataLoader(val_dataset,
+    #                             batch_size=args.batch_size,
+    #                             shuffle=True,
+    #                             num_workers=args.n_threads)
 
-    test_dataloaders = {k:DataLoader(test_dataset,batch_size=1,shuffle=False,num_workers=args.n_threads)
-                        for k, test_dataset in test_datasets.items()}
+    # test_dataloaders = {k:DataLoader(test_dataset,batch_size=1,shuffle=False,num_workers=args.n_threads)
+    #                     for k, test_dataset in test_datasets.items()}
 
     # models
     model = GLUChangeNet_model(batch_norm=True, pyramid_type='VGG',
@@ -246,9 +270,8 @@ if __name__ == "__main__":
         optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
                    lr=args.lr,
                    weight_decay=args.weight_decay)
-
     scheduler = lr_scheduler.MultiStepLR(optimizer,
-                                         milestones=[12, 20, 23],
+                                         milestones=args.milestones,
                                          gamma=0.5)
     weights_loss_coeffs = [0.32, 0.08, 0.02, 0.01]
 
