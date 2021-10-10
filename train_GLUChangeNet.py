@@ -33,7 +33,7 @@ if __name__ == "__main__":
     parser.add_argument('--name_exp', type=str,
                         default=time.strftime('%Y_%m_%d_%H_%M'),
                         help='name of the experiment to save')
-    parser.add_argument('--training_data_dir', type=str, default='../dataset/train_datasets/synthetic',
+    parser.add_argument('--training_data_dir', type=str, default='../dataset/train_datasets',
                         help='path to directory containing original images for training')
     parser.add_argument('--evaluation_data_dir', type=str,  default='../dataset/test_datasets',
                         help='path to directory containing original images for validation')
@@ -118,7 +118,7 @@ if __name__ == "__main__":
                  A.ChannelShuffle(p=0.5),
                  A.ToGray(p=0.5),
                  A.ToSepia(p=0.5)]),
-        A.OneOf([A.RandomFog(fog_coef_lower=0.1,fog_coef_upper=0.5,p=0.5),
+        A.OneOf([A.RandomFog(fog_coef_lower=0.1,fog_coef_upper=0.7,p=0.5),
                 A.RandomRain(p=0.5),
                  A.RandomSnow(p=0.5),
                  A.RandomSunFlare(src_radius=150,p=0.5)]),
