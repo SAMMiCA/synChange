@@ -91,14 +91,17 @@ class changesim_eval(Dataset):
         self.colors = self.seghelper.idx2color
         self.num_class = 5 if multi_class else 1
         self.seqname = seqname
+        self.mapname = mapname
         self.img_size = img_size
     def __getitem__(self, index):
-
+        fn_t0 = self.paths['ref'][index]
+        if 'fire' in self.seqname: index= index+5
+         #if 'dark' in self.seqname: index= index+ 10
         fn_mask = self.paths['GT'][index]
         fn_mask_npy = self.paths['GT'][index].replace('change_segmentation','GT_npy')
         fn_mask_npy = fn_mask_npy.replace('png','npy')
-        fn_t0 = self.paths['ref'][index]
-        if 'fire' in self.seqname: index= index+5
+
+
         fn_t1 = self.paths['query'][index]
 
         if os.path.isfile(fn_t0) == False:
@@ -185,8 +188,9 @@ class changesim_eval(Dataset):
 
     def __len__(self):
         if 'fire' in self.seqname:
-            return len(self.paths['ref'])-5
-
+            return len(self.paths['GT']) - 10
+        # if 'dark' in self.seqname and 'Room_0' in self.mapname:
+        #     return len(self.paths['GT']) - 10
         return len(self.paths['GT'])
 
     def unique(self,array):

@@ -60,7 +60,9 @@ if __name__ == "__main__":
     parser.add_argument('--n_epoch', type=int, default=25,
                         help='number of training epochs')
     parser.add_argument('--batch-size', type=int, default=24, # for RTX3090
-                        help='training batch size')
+                        help='train/val batch size')
+    parser.add_argument('--test_batch_size', type=int, default=24, # for RTX3090
+                        help='test batch size')
     parser.add_argument('--n_threads', type=int, default=4,
                         help='number of parallel threads for dataloaders')
     parser.add_argument('--weight-decay', type=float, default=4e-4,

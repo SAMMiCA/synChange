@@ -668,7 +668,7 @@ def test_epoch(net,
     net.eval()
 
     if not os.path.isdir(save_path): os.mkdir(save_path)
-
+    print('Begin Testing {}'.format(save_path))
     with torch.no_grad():
         pbar = tqdm(enumerate(test_loader), total=len(test_loader))
         for i, mini_batch in pbar:
