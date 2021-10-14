@@ -214,12 +214,19 @@ class gsv_eval(Dataset):
         if self.change_transform is not None:
             mask_r = self.change_transform(mask_r[:,:,None])
 
-        return {'source_image': img_t1_r_,
-                'target_image': img_t0_r_,
-                'source_change': mask_r.squeeze(),
-                'target_change': mask_r.squeeze(),
+        return {'source_image': torch.cat([img_t1_r_,img_t1_r_],dim=1),
+                'target_image': torch.cat([img_t0_r_,img_t0_r_],dim=1),
+                'source_change': torch.cat([mask_r.squeeze(),mask_r.squeeze()],dim=0),
+                'target_change': torch.cat([mask_r.squeeze(),mask_r.squeeze()],dim=0),
                 'source_image_size': (h_r,w_r,3)
                 }
+
+        # return {'source_image': img_t1_r_,
+        #         'target_image': img_t0_r_,
+        #         'source_change': mask_r.squeeze(),
+        #         'target_change': mask_r.squeeze(),
+        #         'source_image_size': (h_r,w_r,3)
+        #         }
 
     def __len__(self):
         return len(self.paths['GT'])
@@ -317,10 +324,10 @@ class tsunami_eval(Dataset):
         if self.change_transform is not None:
             mask_r = self.change_transform(mask_r[:,:,None])
 
-        return {'source_image': img_t1_r_,
-                'target_image': img_t0_r_,
-                'source_change': mask_r.squeeze(),
-                'target_change': mask_r.squeeze(),
+        return {'source_image': torch.cat([img_t1_r_,img_t1_r_],dim=1),
+                'target_image': torch.cat([img_t0_r_,img_t0_r_],dim=1),
+                'source_change': torch.cat([mask_r.squeeze(),mask_r.squeeze()],dim=0),
+                'target_change': torch.cat([mask_r.squeeze(),mask_r.squeeze()],dim=0),
                 'source_image_size': (h_r,w_r,3)
                 }
 

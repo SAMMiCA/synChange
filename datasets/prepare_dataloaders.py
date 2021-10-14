@@ -174,7 +174,20 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                           mapname='*',
                                           seqname='Seq_0_dark'
                                           )
+        elif testset == 'tsunami':
+            test_datasets['tsunami'] = tsunami_eval(root=os.path.join(args.evaluation_data_dir, 'TSUNAMI'),
+                                                          source_image_transform=source_img_transforms,
+                                                          target_image_transform=target_img_transforms,
+                                                          change_transform=change_transform,
 
+                                                          )
+        elif testset == 'gsv':
+            test_datasets['gsv'] = gsv_eval(root=os.path.join(args.evaluation_data_dir, 'GSV'),
+                                                source_image_transform=source_img_transforms,
+                                                target_image_transform=target_img_transforms,
+                                                change_transform=change_transform,
+
+                                                )
     total_len = 0
     for k, d in test_datasets.items():
         print('LOADING test split of {} ({} pairs)'.format(k,len(d)))
