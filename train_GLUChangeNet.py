@@ -49,7 +49,8 @@ if __name__ == "__main__":
     parser.add_argument('--trainset_list', nargs='+')
     parser.add_argument('--testset_list', nargs='+')
     parser.add_argument('--valset_list', nargs='+', default=['synthetic'])
-
+    parser.add_argument('--use_pac', action='store_true',
+                        help='if true, do pixel-adaptive convolution when decoding')
 
     # Optimization parameters
     parser.add_argument('--lr', type=float, default=0.0002, help='learning rate')
@@ -264,7 +265,8 @@ if __name__ == "__main__":
                                  decoder_inputs='corr_flow_feat',
                                  refinement_at_all_levels=False,
                                  refinement_at_adaptive_reso=True,
-                                 num_class=5 if args.multi_class else 2)
+                                 num_class=5 if args.multi_class else 2,
+                                 use_pac = args.use_pac)
     print(colored('==> ', 'blue') + 'GLU-Change-Net created.')
 
     # Optimizer
