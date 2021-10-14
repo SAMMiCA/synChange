@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from torch.autograd import Variable
-
+from utils.pacnet.pac import PacConvTranspose2d
 
 def conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1, dilation=1, batch_norm=False):
     if batch_norm:
@@ -25,6 +25,8 @@ def predict_flow(in_planes):
 def deconv(in_planes, out_planes, kernel_size=4, stride=2, padding=1):
     return nn.ConvTranspose2d(in_planes, out_planes, kernel_size, stride, padding, bias=True)
 
+def deconvPAC(in_planes, out_planes, kernel_size=5, stride=2, padding=2, output_padding=1):
+    return PacConvTranspose2d(in_planes, out_planes, kernel_size, stride, padding, output_padding, bias=True)
 
 def unnormalise_and_convert_mapping_to_flow(map):
     # here map is normalised to -1;1

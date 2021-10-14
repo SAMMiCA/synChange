@@ -6,14 +6,13 @@ import sys
 import torch.nn.functional as F
 from models.feature_backbones.VGG_features import VGGPyramid
 from models.feature_backbones.ResNet_features import ResNetPyramid
-from .mod import CMDTop,ConvDecoder
+from .mod import CMDTop,ConvDecoder, deconvPAC
 from models.our_models.mod import OpticalFlowEstimatorNoDenseConnection, OpticalFlowEstimator, FeatureL2Norm, \
     CorrelationVolume, deconv, conv, predict_flow, unnormalise_and_convert_mapping_to_flow, warp
 from models.our_models.consensus_network_modules import MutualMatching, NeighConsensus, FeatureCorrelation
 os.environ['PYTHON_EGG_CACHE'] = 'tmp/' # a writable directory 
 from models.correlation import correlation # the custom cost volume layer
 import numpy as np
-
 
 class GLUChangeNet_model(nn.Module):
     '''
@@ -23,12 +22,14 @@ class GLUChangeNet_model(nn.Module):
     def __init__(self, evaluation, div=1.0, iterative_refinement=False,
                  refinement_at_all_levels=False, refinement_at_adaptive_reso=True,
                  batch_norm=True, pyramid_type='VGG', md=4, upfeat_channels=2, dense_connection=True,
-                 consensus_network=False, cyclic_consistency=True, decoder_inputs='corr_flow_feat', num_class=2):
+                 consensus_network=False, cyclic_consistency=True, decoder_inputs='corr_flow_feat', num_class=2,
+                 use_pac = True):
         """
         input: md --- maximum displacement (for correlation. default: 4), after warpping
 
         """
         super(GLUChangeNet_model, self).__init__()
+        self.use_pac = use_pac
         self.div=div
         self.pyramid_type = pyramid_type
         self.leakyRELU = nn.LeakyReLU(0.1)
@@ -160,15 +161,35 @@ class GLUChangeNet_model(nn.Module):
 
         self.num_class = num_class
         self.change_dec4 = ConvDecoder(in_channels=512+512+256, bn=batch_norm, out_channels=self.num_class)
-        self.change_deconv4 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
+        if self.use_pac:
+            self.change_deconv4 = deconvPAC(self.num_class, self.num_class, kernel_size=5, stride=2, padding=2,
+                                            output_padding=1)
+        else:
+            self.change_deconv4 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
+
         self.change_dec3 = ConvDecoder(in_channels=256+256+81, bn=batch_norm, out_channels=self.num_class)
-        self.change_deconv3 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
+        if self.use_pac:
+            self.change_deconv3 = deconvPAC(self.num_class, self.num_class, kernel_size=5, stride=2, padding=2,
+                                            output_padding=1)
+        else:
+            self.change_deconv3 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
+        # self.change_deconv3 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
 
         self.change_dec2 = ConvDecoder(in_channels=256+256+81, bn=batch_norm, out_channels=self.num_class)
-        self.change_deconv2 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
+        if self.use_pac:
+            self.change_deconv2 = deconvPAC(self.num_class, self.num_class, kernel_size=5, stride=2, padding=2,
+                                            output_padding=1)
+        else:
+            self.change_deconv2 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
+        # self.change_deconv2 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
 
         self.change_dec1 = ConvDecoder(in_channels=128+128+81, bn=batch_norm, out_channels=self.num_class)
-        self.change_deconv1 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
+        if self.use_pac:
+            self.change_deconv1 = deconvPAC(self.num_class, self.num_class, kernel_size=5, stride=2, padding=2,
+                                            output_padding=1)
+        else:
+            self.change_deconv1 = deconv(self.num_class, self.num_class, kernel_size=3, stride=2, padding=1)
+        # self.change_deconv1 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
 
 
     def pre_process_data(self, source_img, target_img, device, apply_flip=False):
@@ -334,8 +355,18 @@ class GLUChangeNet_model(nn.Module):
     def coarsest_resolution_change(self, c14, c24, corr4):
         changemap4 = self.change_dec4(x1=c14, x2=c24,x3=corr4)
         return changemap4
+    def resize_align_images(self,im_source,im_target,size, flow=None):
 
-    def multiclass2binary(self,multiclass_changemap):
+        if flow is not None:
+            im_source = F.interpolate(im_source, (size[0]//2,size[1]//2), mode='bilinear', align_corners=False)
+            im_target = F.interpolate(im_target, (size[0]//2,size[1]//2), mode='bilinear', align_corners=False)
+            im_source = warp(im_source,flow)
+        im_source = F.interpolate(im_source, size, mode='bilinear', align_corners=False)
+        im_target = F.interpolate(im_target, size, mode='bilinear', align_corners=False)
+
+        return torch.cat([im_source,im_target],dim=1) # bs,6,h,w
+
+    def multiclass2binary_softmax(self, multiclass_changemap):
         binarymap = torch.stack([multiclass_changemap[:,0],torch.sum(multiclass_changemap[:,1:],dim=1)],dim=1)
         binarymap = F.softmax(binarymap,dim=1)[:,1]
         return binarymap[:,None,...]
@@ -371,8 +402,12 @@ class GLUChangeNet_model(nn.Module):
         flow4, corr4_changehead = self.coarsest_resolution_flow(c14, c24, h_256, w_256,return_corr=True) # (8,2,16,16)
         up_flow4 = self.deconv4(flow4) # (8,2,32,32)
         change4 = self.change_dec4(c14,c24,corr4_changehead) # (b,5,16,16)
-        up_change4 = self.change_deconv4(change4)
-        up_change4_binary = self.multiclass2binary(up_change4)
+        if self.use_pac:
+            aligned_imgs_4 = self.resize_align_images(im_source, im_target, size=(32, 32), flow=None)
+            up_change4 = self.change_deconv4(change4,aligned_imgs_4)
+        else:
+            up_change4= self.change_deconv4(change4)
+        up_change4_binary = self.multiclass2binary_softmax(up_change4)
         # print(corr4_changehead.shape,c14.shape,c24.shape,change4.shape)
 
         # level 32x32
@@ -389,7 +424,7 @@ class GLUChangeNet_model(nn.Module):
         # ORIGINAL RESOLUTION
         up_change3 = F.interpolate(input=change3, size=(int(h_full / 8.0), int(w_full / 8.0)), mode='bilinear',
                                  align_corners=False)
-        up_change3_binary = self.multiclass2binary(up_change3)
+        up_change3_binary = self.multiclass2binary_softmax(up_change3)
         # print(corr3_changehead.shape,c13.shape,warp3.shape,change3.shape)
 
         corr3 = self.leakyRELU(corr3)
@@ -465,8 +500,14 @@ class GLUChangeNet_model(nn.Module):
         corr2 = correlation.FunctionCorrelation(tensorFirst=c12, tensorSecond=warp2)
         corr2_changehead = self.l2norm(F.relu(corr2))
         change2 = self.change_dec2(x1=c12,x2=warp2,x3=corr2_changehead,mask=up_change3_binary)
-        up_change2 = self.change_deconv2(change2)
-        up_change2_binary = self.multiclass2binary(up_change2)
+        if self.use_pac:
+            aligned_imgs_2 = self.resize_align_images(im_source, im_target, size=(int(h_full / 4.0), int(w_full / 4.0)),
+                                                      flow=up_flow3*div*ratio)
+            up_change2 = self.change_deconv2(change2,aligned_imgs_2)
+        else:
+            up_change2= self.change_deconv2(change2)
+        # up_change2 = self.change_deconv2(change2)
+        up_change2_binary = self.multiclass2binary_softmax(up_change2)
         # print(corr2_changehead.shape,c12.shape,warp2.shape,change2.shape)
 
         corr2 = self.leakyRELU(corr2)
@@ -493,8 +534,14 @@ class GLUChangeNet_model(nn.Module):
         corr1_changehead = self.l2norm(F.relu(corr1))
         change1 = self.change_dec1(x1=c11,x2=warp1,x3=corr1_changehead,mask=up_change2_binary)
         # print(corr1_changehead.shape,c11.shape,warp1.shape,change1.shape)#,change1)
-        up_change1 = self.change_deconv1(change2)
-        up_change1_binary = self.multiclass2binary(up_change1)
+        if self.use_pac:
+            aligned_imgs_1 = self.resize_align_images(im_source, im_target, size=(int(h_full / 2.0), int(w_full / 2.0)),
+                                                      flow=up_flow2*div*ratio)
+            up_change1 = self.change_deconv2(change1,aligned_imgs_1)
+        else:
+            up_change1= self.change_deconv2(change1)
+        # up_change1 = self.change_deconv1(change1)
+
         corr1 = self.leakyRELU(corr1)
         if self.decoder_inputs == 'corr_flow_feat':
             corr1 = torch.cat((corr1, up_flow2, up_feat2), 1)
@@ -513,6 +560,8 @@ class GLUChangeNet_model(nn.Module):
         else:
             return {
                     'flow':([flow4, flow3], [flow2, flow1]),
-                    'change':([change4,change3],[change2,change1])
-                    }
+                    #'change':([change4,change3],[change2,up_change1])
+                'change':([up_change4,up_change3],[up_change2,up_change1])
+
+            }
 
