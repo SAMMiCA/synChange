@@ -6,7 +6,7 @@ import sys
 import torch.nn.functional as F
 from models.feature_backbones.VGG_features import VGGPyramid
 from models.feature_backbones.ResNet_features import ResNetPyramid
-from .mod import CMDTop,ConvDecoder, deconvPAC
+from .mod import CMDTop,ConvDecoder #, deconvPAC
 from models.our_models.mod import OpticalFlowEstimatorNoDenseConnection, OpticalFlowEstimator, FeatureL2Norm, \
     CorrelationVolume, deconv, conv, predict_flow, unnormalise_and_convert_mapping_to_flow, warp
 from models.our_models.consensus_network_modules import MutualMatching, NeighConsensus, FeatureCorrelation
@@ -30,6 +30,7 @@ class GLUChangeNet_model(nn.Module):
         """
         super(GLUChangeNet_model, self).__init__()
         self.use_pac = use_pac
+        if self.use_pac: from .mod import deconvPAC
         self.div=div
         self.pyramid_type = pyramid_type
         self.leakyRELU = nn.LeakyReLU(0.1)
