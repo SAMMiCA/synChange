@@ -123,7 +123,8 @@ class vl_cmu_cd_eval(Dataset):
                 'target_change': mask_binary.squeeze().int(),
                 'flow_map': torch.zeros(2,img_t1_r_.shape[1],img_t1_r_.shape[2]),
                 'correspondence_mask': torch.ones_like(mask_binary.squeeze()).numpy().astype(np.bool),
-                'use_flow': torch.ones(1)
+                'use_flow': torch.ones(1),
+                'disable_flow': torch.zeros(1),
 
                 #'source_image_size': (h_r,w_r,3)
                 }

@@ -372,7 +372,7 @@ class GLUChangeNet_model(nn.Module):
         binarymap = F.softmax(binarymap,dim=1)[:,1]
         return binarymap[:,None,...]
 
-    def forward(self, im_target, im_source, im_target_256, im_source_256):
+    def forward(self, im_target, im_source, im_target_256, im_source_256,disable_flow=None):
         # all indices 1 refer to target images
         # all indices 2 refer to source images
 
@@ -417,7 +417,7 @@ class GLUChangeNet_model(nn.Module):
         up_flow_4_warping = up_flow4 * div
         up_flow_4_warping[:, 0, :, :] *= ratio_x
         up_flow_4_warping[:, 1, :, :] *= ratio_y
-        warp3 = warp(c23, up_flow_4_warping) # (bs,256,32,32)
+        warp3 = warp(c23, up_flow_4_warping,disable_flow) # (bs,256,32,32)
         # constrained correlation now
         corr3 = correlation.FunctionCorrelation(tensorFirst=c13, tensorSecond=warp3)
         corr3_changehead = self.l2norm(F.relu(corr3))
@@ -471,7 +471,7 @@ class GLUChangeNet_model(nn.Module):
                                              align_corners=False)
                     c23_bis = torch.nn.functional.interpolate(c22, size=(int(h_full * ratio), int(w_full * ratio)), mode='area')
                     c13_bis = torch.nn.functional.interpolate(c12, size=(int(h_full * ratio), int(w_full * ratio)), mode='area')
-                    warp3 = warp(c23_bis, up_flow3 * div * ratio)
+                    warp3 = warp(c23_bis, up_flow3 * div * ratio,disable_flow)
                     corr3 = correlation.FunctionCorrelation(tensorFirst=c13_bis, tensorSecond=warp3)
                     corr3_changehead = self.l2norm(F.relu(corr3))
                     corr3 = self.leakyRELU(corr3)
@@ -497,7 +497,7 @@ class GLUChangeNet_model(nn.Module):
 
         # level 1/8 of original resolution
         ratio = 1.0 / 8.0
-        warp2 = warp(c22, up_flow3*div*ratio)
+        warp2 = warp(c22, up_flow3*div*ratio,disable_flow)
         corr2 = correlation.FunctionCorrelation(tensorFirst=c12, tensorSecond=warp2)
         corr2_changehead = self.l2norm(F.relu(corr2))
         change2 = self.change_dec2(x1=c12,x2=warp2,x3=corr2_changehead,mask=up_change3_binary)
@@ -530,7 +530,7 @@ class GLUChangeNet_model(nn.Module):
 
         # level 1/4 of original resolution
         ratio = 1.0 / 4.0
-        warp1 = warp(c21, up_flow2*div*ratio)
+        warp1 = warp(c21, up_flow2*div*ratio,disable_flow)
         corr1 = correlation.FunctionCorrelation(tensorFirst=c11, tensorSecond=warp1)
         corr1_changehead = self.l2norm(F.relu(corr1))
         change1 = self.change_dec1(x1=c11,x2=warp1,x3=corr1_changehead,mask=up_change2_binary)

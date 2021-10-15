@@ -183,7 +183,9 @@ class changesim_eval(Dataset):
                 # 'source_image_size': (h_r,w_r,3),
                 'flow_map': torch.zeros(2, img_t1_r_.shape[1], img_t1_r_.shape[2]),
                 'correspondence_mask': torch.ones_like(mask_r_.squeeze()).numpy().astype(np.bool),
-                'use_flow': torch.zeros(1)
+                'use_flow': torch.zeros(1),
+                'disable_flow': torch.zeros(1),
+
                 }
 
     def __len__(self):

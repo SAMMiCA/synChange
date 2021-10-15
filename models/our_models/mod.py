@@ -195,7 +195,7 @@ class ConvDecoder(CorrespondenceMapBase):
         x = self.conv4(self.conv3(self.conv2(self.conv1(self.conv0(x)))))
         return self.final(x)
 
-def warp(x, flo):
+def warp(x, flo,disable_flow=None):
     """
     warp an image/tensor (im2) back to im1, according to the optical flow
 
@@ -203,6 +203,9 @@ def warp(x, flo):
     flo: [B, 2, H, W] flow
 
     """
+    if disable_flow is not None:
+        flo = flo * disable_flow
+
     B, C, H, W = x.size()
     # mesh grid
     xx = torch.arange(0, W).view(1, -1).repeat(H, 1)
