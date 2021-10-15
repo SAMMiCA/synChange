@@ -189,7 +189,7 @@ class GLUChangeNet_model(nn.Module):
             self.change_deconv1 = deconvPAC(self.num_class, self.num_class, kernel_size=5, stride=2, padding=2,
                                             output_padding=1)
         else:
-            self.change_deconv1 = deconv(self.num_class, self.num_class, kernel_size=3, stride=2, padding=1)
+            self.change_deconv1 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
         # self.change_deconv1 = deconv(self.num_class, self.num_class, kernel_size=4, stride=2, padding=1)
 
 

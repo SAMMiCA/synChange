@@ -74,7 +74,24 @@ def prepare_trainval(args,
                                       seqname='Seq_0_dark',
                                       img_size=(520, 520)
                                       )
+    if 'tsunami' in args.trainset_list:
+        train_datasets['tsunami'] = tsunami_eval(root=os.path.join(args.evaluation_data_dir, 'TSUNAMI'),
+                                                      source_image_transform=source_img_transforms,
+                                                      target_image_transform=target_img_transforms,
+                                                      change_transform=change_transform,
+                                                split='train',
+                                        img_size = (260, 520)
 
+                                        )
+    if 'gsv' in args.trainset_list:
+        train_datasets['gsv'] = gsv_eval(root=os.path.join(args.evaluation_data_dir, 'GSV'),
+                                        source_image_transform=source_img_transforms,
+                                        target_image_transform=target_img_transforms,
+                                        change_transform=change_transform,
+                                            split='train',
+                                         img_size=(260, 520)
+
+                                         )
     for k, d in train_datasets.items():
         print('LOADING train split of {} ({} pairs)'.format(k,len(d)))
 
@@ -147,7 +164,7 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                               mapname='*',
                                               seqname='Seq_0_dark'
                                               )
-        elif testset == 'tunel_normal':
+        elif testset == 'tunnel_normal':
             test_datasets['tunnel_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'Tunnel'),
                                               source_image_transform=source_img_transforms,
                                               target_image_transform=target_img_transforms,
@@ -174,7 +191,21 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                           mapname='*',
                                           seqname='Seq_0_dark'
                                           )
+        elif testset == 'tsunami':
+            test_datasets['tsunami'] = tsunami_eval(root=os.path.join(args.evaluation_data_dir, 'TSUNAMI'),
+                                                          source_image_transform=source_img_transforms,
+                                                          target_image_transform=target_img_transforms,
+                                                          change_transform=change_transform,
+                                                    split='test'
 
+                                                    )
+        elif testset == 'gsv':
+            test_datasets['gsv'] = gsv_eval(root=os.path.join(args.evaluation_data_dir, 'GSV'),
+                                                source_image_transform=source_img_transforms,
+                                                target_image_transform=target_img_transforms,
+                                                change_transform=change_transform,
+                                                    split='test'
+                                                )
     total_len = 0
     for k, d in test_datasets.items():
         print('LOADING test split of {} ({} pairs)'.format(k,len(d)))

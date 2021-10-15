@@ -128,10 +128,14 @@ class gsv_eval(Dataset):
                  source_image_transform=None, target_image_transform=None,
                  co_transform = None,
                  change_transform=None,
+                 split='train',
+                 img_size = (256,512)
                  ):
         super(gsv_eval, self).__init__()
         self.paths = {'GT':glob(pjoin(root,'ground_truth','*.bmp'))}
-
+        self.split = split
+        self.paths['GT'] = self.paths['GT'][:80] if self.split == 'train' else self.paths['GT'][80:]
+        self.img_size = img_size
         query_paths, ref_paths = [],[]
         for gtpath in self.paths['GT']:
             query_path = gtpath.replace('ground_truth','t1')
@@ -184,8 +188,9 @@ class gsv_eval(Dataset):
         img_t1 = cv2.cvtColor(img_t1,cv2.COLOR_BGR2RGB)
 
         w, h, c = img_t0.shape
-        w_r = int(256 * max(w / 256, 1))
-        h_r = int(256 * max(h / 256, 1))
+        # w_r = int(256 * max(w / 256, 1))
+        # h_r = int(256 * max(h / 256, 1))
+        (w_r, h_r) = self.img_size
 
         img_t0_r = cv2.resize(img_t0, (h_r, w_r))
         img_t1_r = cv2.resize(img_t1, (h_r, w_r))
@@ -214,12 +219,25 @@ class gsv_eval(Dataset):
         if self.change_transform is not None:
             mask_r = self.change_transform(mask_r[:,:,None])
 
-        return {'source_image': img_t1_r_,
-                'target_image': img_t0_r_,
-                'source_change': mask_r.squeeze(),
-                'target_change': mask_r.squeeze(),
-                'source_image_size': (h_r,w_r,3)
+        img_t1_r_ = torch.cat([img_t1_r_,img_t1_r_],dim=1)
+        img_t0_r = torch.cat([img_t0_r_,img_t0_r_],dim=1)
+        mask_r = torch.cat([mask_r.squeeze(),mask_r.squeeze()],dim=0)
+        return {'source_image': img_t0_r,
+                'target_image': img_t1_r_,
+                'source_change': mask_r.int(),
+                'target_change': mask_r.int(),
+                # 'source_image_size': (h_r,w_r,3),
+                'flow_map': torch.zeros(2, img_t1_r_.shape[1], img_t1_r_.shape[2]),
+                'correspondence_mask': torch.ones_like(mask_r.squeeze()).numpy().astype(np.bool),
+                'use_flow': torch.zeros(1)
                 }
+
+        # return {'source_image': img_t1_r_,
+        #         'target_image': img_t0_r_,
+        #         'source_change': mask_r.squeeze(),
+        #         'target_change': mask_r.squeeze(),
+        #         'source_image_size': (h_r,w_r,3)
+        #         }
 
     def __len__(self):
         return len(self.paths['GT'])
@@ -231,9 +249,16 @@ class tsunami_eval(Dataset):
                  source_image_transform=None, target_image_transform=None,
                  co_transform = None,
                  change_transform=None,
+                 split='train',
+                 img_size=(256, 512)
+
                  ):
         super(tsunami_eval, self).__init__()
         self.paths = {'GT':glob(pjoin(root,'mask','*.png'))}
+        self.split = split
+        self.img_size = img_size
+        self.paths['GT'] = self.paths['GT'][:80] if self.split == 'train' else self.paths['GT'][80:]
+
         query_paths, ref_paths = [],[]
         for gtpath in self.paths['GT']:
             query_path = gtpath.replace('mask','t1')
@@ -287,8 +312,9 @@ class tsunami_eval(Dataset):
         img_t1 = cv2.cvtColor(img_t1,cv2.COLOR_BGR2RGB)
 
         w, h, c = img_t0.shape
-        w_r = int(256 * max(w / 256, 1))
-        h_r = int(256 * max(h / 256, 1))
+        # w_r = int(256 * max(w / 256, 1))
+        # h_r = int(256 * max(h / 256, 1))
+        (w_r, h_r) = self.img_size
 
         img_t0_r = cv2.resize(img_t0, (h_r, w_r))
         img_t1_r = cv2.resize(img_t1, (h_r, w_r))
@@ -317,11 +343,17 @@ class tsunami_eval(Dataset):
         if self.change_transform is not None:
             mask_r = self.change_transform(mask_r[:,:,None])
 
-        return {'source_image': img_t1_r_,
-                'target_image': img_t0_r_,
-                'source_change': mask_r.squeeze(),
-                'target_change': mask_r.squeeze(),
-                'source_image_size': (h_r,w_r,3)
+        img_t1_r_ = torch.cat([img_t1_r_,img_t1_r_],dim=1)
+        img_t0_r = torch.cat([img_t0_r_,img_t0_r_],dim=1)
+        mask_r = torch.cat([mask_r.squeeze(),mask_r.squeeze()],dim=0)
+        return {'source_image': img_t0_r,
+                'target_image': img_t1_r_,
+                'source_change': mask_r.int(),
+                'target_change': mask_r.int(),
+                # 'source_image_size': (h_r,w_r,3),
+                'flow_map': torch.zeros(2, img_t1_r_.shape[1], img_t1_r_.shape[2]),
+                'correspondence_mask': torch.ones_like(mask_r.squeeze()).numpy().astype(np.bool),
+                'use_flow': torch.zeros(1)
                 }
 
     def __len__(self):
