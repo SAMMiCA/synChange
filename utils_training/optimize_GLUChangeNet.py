@@ -345,10 +345,12 @@ def train_epoch(net,
             pre_process_change(mini_batch['source_change'],
             mini_batch['target_change'],
             device=device)
-        out_dict = net(target_image, source_image, target_image_256, source_image_256)
+        disable_flow = mini_batch['disable_flow'][..., None, None].to(device)  # bs,1,1,1
+        out_dict = net(target_image, source_image, target_image_256, source_image_256,disable_flow=disable_flow)
         out_flow_256, out_flow_orig = out_dict['flow']
         out_change_256, out_change_orig = out_dict['change']
         use_flow = mini_batch['use_flow'][...,None].to(device)
+
         # At original resolution
         flow_gt_original = mini_batch['flow_map'].to(device)
         if flow_gt_original.shape[1] != 2:
@@ -524,7 +526,8 @@ def validate_epoch(net,
                 pre_process_change(mini_batch['source_change'],
                                    mini_batch['target_change'],
                                    device=device)
-            out_dict = net(target_image, source_image, target_image_256, source_image_256)
+            disable_flow = mini_batch['disable_flow'][..., None,None].to(device) # bs,1,1,1
+            out_dict = net(target_image, source_image, target_image_256, source_image_256, disable_flow=disable_flow)
             out_flow_256, out_flow_orig = out_dict['flow']
             out_change_256, out_change_orig = out_dict['change']
             ''' Evaluate Flow '''
@@ -680,7 +683,8 @@ def test_epoch(net,
                 pre_process_change(mini_batch['source_change'],
                                    mini_batch['target_change'],
                                    device=device)
-            out_dict = net(target_image, source_image, target_image_256, source_image_256)
+            disable_flow = mini_batch['disable_flow'][..., None,None].to(device) # bs,1,1,1
+            out_dict = net(target_image, source_image, target_image_256, source_image_256, disable_flow=disable_flow)
             out_flow_256, out_flow_orig = out_dict['flow']
 
             out_change_256, out_change_orig = out_dict['change']
