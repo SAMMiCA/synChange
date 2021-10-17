@@ -19,6 +19,7 @@ from tensorboardX import SummaryWriter
 from utils.image_transforms import ArrayToTensor
 from datasets.prepare_dataloaders import prepare_trainval,prepare_test
 from datasets.prepare_transforms import prepare_transforms
+from utils_training.prepare_optimizer import prepare_optim
 
 if __name__ == "__main__":
     # Argument parsing
@@ -72,9 +73,20 @@ if __name__ == "__main__":
                         help='val/not-used split ratio (if 0.9, use 90% of val samples)')
     parser.add_argument('--plot_interval', type=int, default=10,
                         help='plot every N iteration')
+    parser.add_argument('--test_interval', type=int, default=10,
+                        help='test every N epoch')
     parser.add_argument('--milestones', nargs='+', type=int,
                         default=[12,20,23], # for 25 epoch
                         help='schedule for learning rate decrease')
+    parser.add_argument('--optim', type=str, default='adamw',
+                        help='adam or adamw')
+    parser.add_argument('--scheduler', type=str, default='multistep',
+                        help='lambda or multistep')
+    parser.add_argument('--img_size', nargs='+', type=int,
+                        default=[520, 520],
+                        help='img_size (if you want to use synthetic dataset, this value should be (520,520)')
+    parser.add_argument('--disable_transform', action='store_true',
+                        help='if true, do not perform transform when training')
 
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -92,7 +104,7 @@ if __name__ == "__main__":
 
 
     # transforms
-    source_img_transforms, target_img_transforms,co_transform, flow_transform, change_transform = prepare_transforms()
+    source_img_transforms, target_img_transforms,co_transform, flow_transform, change_transform = prepare_transforms(args)
 
     # dataloaders
     train_dataloader, val_dataloader = prepare_trainval(args, source_img_transforms, target_img_transforms,
@@ -115,13 +127,7 @@ if __name__ == "__main__":
     print(colored('==> ', 'blue') + 'GLU-Change-Net created.')
 
     # Optimizer
-    optimizer = \
-        optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-                   lr=args.lr,
-                   weight_decay=args.weight_decay)
-    scheduler = lr_scheduler.MultiStepLR(optimizer,
-                                         milestones=args.milestones,
-                                         gamma=0.5)
+    optimizer, scheduler = prepare_optim(args,model)
     weights_loss_coeffs = [0.32, 0.08, 0.02, 0.01]
 
     if args.pretrained:

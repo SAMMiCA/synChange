@@ -90,6 +90,8 @@ if __name__ == "__main__":
     parser.add_argument('--img_size', nargs='+', type=int,
                         default=[256,256],
                         help='img_size (if you want to use synthetic dataset, this value should be (520,520)')
+    parser.add_argument('--disable_transform', action='store_true',
+                        help='if true, do not perform transform when training')
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print('device:{}'.format(device))
@@ -104,7 +106,7 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
     # transforms
-    source_img_transforms, target_img_transforms,co_transform, flow_transform, change_transform = prepare_transforms()
+    source_img_transforms, target_img_transforms,co_transform, flow_transform, change_transform = prepare_transforms(args)
 
     # dataloaders
     train_dataloader, val_dataloader = prepare_trainval(args, transforms.Compose([ArrayToTensor(get_float=False)]),
