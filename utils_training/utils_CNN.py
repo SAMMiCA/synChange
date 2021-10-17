@@ -31,8 +31,14 @@ def load_checkpoint(model, optimizer=None, scheduler=None, filename='checkpoint.
     if os.path.isfile(filename):
         print("=> loading checkpoint '{}'".format(filename))
         checkpoint = torch.load(filename)
-        start_epoch = checkpoint['epoch']
-        model = load_my_state_dict(model,checkpoint['state_dict'])
+        try:
+            start_epoch = checkpoint['epoch']
+        except:
+            pass
+        if 'state_dict' in checkpoint.keys():
+            model = load_my_state_dict(model,checkpoint['state_dict'])
+        else:
+            model = load_my_state_dict(model,checkpoint)
 
         if optimizer is not None: optimizer.load_state_dict(checkpoint['optimizer'])
         if scheduler is not None: scheduler.load_state_dict(checkpoint['scheduler'])
@@ -41,7 +47,7 @@ def load_checkpoint(model, optimizer=None, scheduler=None, filename='checkpoint.
         except:
             best_val=-1
         print("=> loaded checkpoint '{}' (epoch {})"
-                  .format(filename, checkpoint['epoch']))
+                  .format(filename, start_epoch))
     else:
         print("=> no checkpoint found at '{}'".format(filename))
 

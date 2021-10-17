@@ -34,7 +34,7 @@ def prepare_trainval(args,
                                                      target_image_transform=target_img_transforms,
                                                      change_transform=change_transform,
                                                      split='train',
-                                                     img_size=(520, 520)
+                                                     img_size=args.img_size
                                                      )
     if 'pcd' in args.trainset_list:
         train_datasets['pcd'] =pcd_5fold(root=os.path.join(args.evaluation_data_dir,'pcd_5cv'),
@@ -42,7 +42,7 @@ def prepare_trainval(args,
                                       target_image_transform=target_img_transforms,
                                       change_transform=change_transform,
                                       split= 'train',
-                                      img_size = (520,520)
+                                      img_size = args.img_size
                                       )
     if 'changesim_normal' in args.trainset_list:
         train_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.training_data_dir,'Query_Seq_Train'),
@@ -52,7 +52,7 @@ def prepare_trainval(args,
                                       multi_class=args.multi_class,
                                       mapname='*',
                                       seqname='Seq_0',
-                                      img_size=(520, 520)
+                                      img_size= args.img_size
                                       )
     if 'changesim_dust' in args.trainset_list:
         train_datasets['changesim_dust'] = changesim_eval(root=os.path.join(args.training_data_dir,'Query_Seq_Train'),
@@ -62,7 +62,7 @@ def prepare_trainval(args,
                                       multi_class=args.multi_class,
                                       mapname='*',
                                       seqname='Seq_0_dust',
-                                      img_size=(520, 520)
+                                      img_size= args.img_size
                                       )
     if 'changesim_dark' in args.trainset_list:
         train_datasets['changesim_dark'] = changesim_eval(root=os.path.join(args.training_data_dir,'Query_Seq_Train'),
@@ -72,7 +72,7 @@ def prepare_trainval(args,
                                       multi_class=args.multi_class,
                                       mapname='*',
                                       seqname='Seq_0_dark',
-                                      img_size=(520, 520)
+                                      img_size= args.img_size
                                       )
     if 'tsunami' in args.trainset_list:
         train_datasets['tsunami'] = tsunami_eval(root=os.path.join(args.evaluation_data_dir, 'TSUNAMI'),

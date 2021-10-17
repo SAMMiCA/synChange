@@ -24,6 +24,7 @@ from datasets.pcd import gsv_eval, tsunami_eval,pcd_5fold
 from datasets.changesim import changesim_eval
 from datasets.prepare_dataloaders import prepare_trainval,prepare_test
 from datasets.prepare_transforms import prepare_transforms
+from utils_training.prepare_optimizer import prepare_optim
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 
@@ -47,23 +48,21 @@ if __name__ == "__main__":
                        help='path to resume model (load both model and optimizer params')
     parser.add_argument('--multi_class', action='store_true',
                         help='if true, do multi-class change detection')
-    parser.add_argument('--trainset_list', nargs='+')
-    parser.add_argument('--testset_list', nargs='+')
+    parser.add_argument('--trainset_list', nargs='+', default=['pcd'])
+    parser.add_argument('--testset_list', nargs='+', default=['pcd'])
     parser.add_argument('--valset_list', nargs='+', default=['synthetic'])
-    parser.add_argument('--use_pac', action='store_true',
-                        help='if true, do pixel-adaptive convolution when decoding')
 
     # Optimization parameters
-    parser.add_argument('--lr', type=float, default=0.0002, help='learning rate')
+    parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument('--momentum', type=float,
                         default=4e-4, help='momentum constant')
     parser.add_argument('--start_epoch', type=int, default=-1,
                         help='start epoch')
-    parser.add_argument('--n_epoch', type=int, default=25,
+    parser.add_argument('--n_epoch', type=int, default=150,
                         help='number of training epochs')
-    parser.add_argument('--batch-size', type=int, default=24, # for RTX3090
+    parser.add_argument('--batch-size', type=int, default=16, # for RTX3090
                         help='train/val batch size')
-    parser.add_argument('--test_batch_size', type=int, default=24, # for RTX3090
+    parser.add_argument('--test_batch_size', type=int, default=16, # for RTX3090
                         help='test batch size')
     parser.add_argument('--n_threads', type=int, default=4,
                         help='number of parallel threads for dataloaders')
@@ -75,14 +74,22 @@ if __name__ == "__main__":
                         help='Pseudo-RNG seed')
     parser.add_argument('--split_ratio', type=float, default=0.99,
                         help='train/val split ratio')
-    parser.add_argument('--split2_ratio', type=float, default=0.99,
+    parser.add_argument('--split2_ratio', type=float, default=0.001,
                         help='val/not-used split ratio (if 0.9, use 90% of val samples)')
     parser.add_argument('--plot_interval', type=int, default=10,
                         help='plot every N iteration')
+    parser.add_argument('--test_interval', type=int, default=10,
+                        help='test every N epoch')
     parser.add_argument('--milestones', nargs='+', type=int,
                         default=[12,20,23], # for 25 epoch
-                        help='schedule for learning rate decrease')
-
+                        help='schedule for learning rate decrease when multi-stepLR')
+    parser.add_argument('--optim', type=str, default='adam',
+                        help='adam or adamw')
+    parser.add_argument('--scheduler', type=str, default='lambda',
+                        help='lambda or multistep')
+    parser.add_argument('--img_size', nargs='+', type=int,
+                        default=[256,256],
+                        help='img_size (if you want to use synthetic dataset, this value should be (520,520)')
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print('device:{}'.format(device))
@@ -100,7 +107,8 @@ if __name__ == "__main__":
     source_img_transforms, target_img_transforms,co_transform, flow_transform, change_transform = prepare_transforms()
 
     # dataloaders
-    train_dataloader, val_dataloader = prepare_trainval(args, source_img_transforms, target_img_transforms,
+    train_dataloader, val_dataloader = prepare_trainval(args, transforms.Compose([ArrayToTensor(get_float=False)]),
+                                                        transforms.Compose([ArrayToTensor(get_float=False)]),
                      flow_transform, co_transform, change_transform)
     test_dataloaders = prepare_test(args, source_img_transforms=transforms.Compose([ArrayToTensor(get_float=False)]),
                                     target_img_transforms=transforms.Compose([ArrayToTensor(get_float=False)]),
@@ -108,16 +116,11 @@ if __name__ == "__main__":
 
     # models
     model = TANet()
-    print(colored('==> ', 'blue') + 'GLU-Change-Net created.')
+    print(colored('==> ', 'blue') + 'DR-TANet created.')
 
     # Optimizer
-    optimizer = \
-        optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-                   lr=args.lr,
-                   weight_decay=args.weight_decay)
-    scheduler = lr_scheduler.MultiStepLR(optimizer,
-                                         milestones=args.milestones,
-                                         gamma=0.5)
+    optimizer, scheduler = prepare_optim(args,model)
+
 
     if args.pretrained:
         # reload from pre_trained_model
@@ -196,41 +199,42 @@ if __name__ == "__main__":
                          'best_loss': 9999999},
                         False, save_path, 'epoch_{}.pth'.format(epoch + 1))
 
-        for dataset_name,test_dataloader in test_dataloaders.items():
-            result = test_epoch(model, test_dataloader, device, epoch=epoch,
-                       save_path=os.path.join(save_path, dataset_name),
-                       writer=val_writer,
-                       div_flow=args.div_flow,
-                       plot_interval=args.plot_interval)
+        if epoch % args.test_interval == 0:
+            for dataset_name,test_dataloader in test_dataloaders.items():
+                result = test_epoch(model, test_dataloader, device, epoch=epoch,
+                           save_path=os.path.join(save_path, dataset_name),
+                           writer=val_writer,
+                           div_flow=args.div_flow,
+                           plot_interval=args.plot_interval)
+                print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
+                print('          Static  |   Change   |   mIoU ')
+                print('          %7.2f %7.2f %7.2f ' %
+                      (result['IoUs'][0], result['IoUs'][-1], result['mIoU']))
+
+
+
+            # Validation
+            result = \
+                validate_epoch(model, val_dataloader, device, epoch=epoch,
+                               save_path=os.path.join(save_path, 'val'),
+                               writer = val_writer,
+                               div_flow=args.div_flow,
+                               )
+
             print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
             print('          Static  |   Change   |   mIoU ')
             print('          %7.2f %7.2f %7.2f ' %
                   (result['IoUs'][0], result['IoUs'][-1], result['mIoU']))
+            print(colored('==> ', 'blue') + 'finished epoch :', epoch + 1)
 
-
-
-        # Validation
-        result = \
-            validate_epoch(model, val_dataloader, device, epoch=epoch,
-                           save_path=os.path.join(save_path, 'val'),
-                           writer = val_writer,
-                           div_flow=args.div_flow,
-                           )
-
-        print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
-        print('          Static  |   Change   |   mIoU ')
-        print('          %7.2f %7.2f %7.2f ' %
-              (result['IoUs'][0], result['IoUs'][-1], result['mIoU']))
-        print(colored('==> ', 'blue') + 'finished epoch :', epoch + 1)
-
-        # save checkpoint for each epoch and a fine called best_model so far
-        is_best = result['f1'] < best_val
-        best_val = min(result['f1'], best_val)
-        save_checkpoint({'epoch': epoch + 1,
-                         'state_dict': model.module.state_dict(),
-                         'optimizer': optimizer.state_dict(),
-                         'scheduler': scheduler.state_dict(),
-                         'best_loss': best_val},
-                        is_best, save_path, 'epoch_{}.pth'.format(epoch + 1))
+            # save checkpoint for each epoch and a fine called best_model so far
+            is_best = result['f1'] < best_val
+            best_val = min(result['f1'], best_val)
+            save_checkpoint({'epoch': epoch + 1,
+                             'state_dict': model.module.state_dict(),
+                             'optimizer': optimizer.state_dict(),
+                             'scheduler': scheduler.state_dict(),
+                             'best_loss': best_val},
+                            is_best, save_path, 'epoch_{}.pth'.format(epoch + 1))
 
     print(args.seed, 'Training took:', time.time()-train_started, 'seconds')
