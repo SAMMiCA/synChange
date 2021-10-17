@@ -12,13 +12,20 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
 import torch.optim.lr_scheduler as lr_scheduler
-from utils_training.optimize_GLUChangeNet import train_epoch, validate_epoch, test_epoch, train_change
-from models.our_models.GLUChangeNet import GLUChangeNet_model
+from datasets.training_dataset import HomoAffTps_Dataset
+from datasets.load_pre_made_dataset import PreMadeChangeDataset
+from utils_training.optimize_DRTANet import train_epoch, validate_epoch, test_epoch
+from models.DR_TANet.TANet import TANet
 from utils_training.utils_CNN import load_checkpoint, save_checkpoint, boolean_string
 from tensorboardX import SummaryWriter
 from utils.image_transforms import ArrayToTensor
+from datasets.vl_cmu_cd import vl_cmu_cd_eval
+from datasets.pcd import gsv_eval, tsunami_eval,pcd_5fold
+from datasets.changesim import changesim_eval
 from datasets.prepare_dataloaders import prepare_trainval,prepare_test
 from datasets.prepare_transforms import prepare_transforms
+import albumentations as A
+from albumentations.pytorch.transforms import ToTensorV2
 
 if __name__ == "__main__":
     # Argument parsing
@@ -89,8 +96,6 @@ if __name__ == "__main__":
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
-
-
     # transforms
     source_img_transforms, target_img_transforms,co_transform, flow_transform, change_transform = prepare_transforms()
 
@@ -102,16 +107,7 @@ if __name__ == "__main__":
                      flow_transform=flow_transform, co_transform=None, change_transform=change_transform)
 
     # models
-    model = GLUChangeNet_model(batch_norm=True, pyramid_type='VGG',
-                                 div=args.div_flow, evaluation=False,
-                                 consensus_network=False,
-                                 cyclic_consistency=True,
-                                 dense_connection=True,
-                                 decoder_inputs='corr_flow_feat',
-                                 refinement_at_all_levels=False,
-                                 refinement_at_adaptive_reso=True,
-                                 num_class=5 if args.multi_class else 2,
-                                 use_pac = args.use_pac)
+    model = TANet()
     print(colored('==> ', 'blue') + 'GLU-Change-Net created.')
 
     # Optimizer
@@ -122,7 +118,6 @@ if __name__ == "__main__":
     scheduler = lr_scheduler.MultiStepLR(optimizer,
                                          milestones=args.milestones,
                                          gamma=0.5)
-    weights_loss_coeffs = [0.32, 0.08, 0.02, 0.01]
 
     if args.pretrained:
         # reload from pre_trained_model
@@ -188,9 +183,8 @@ if __name__ == "__main__":
                                  train_writer,
                                  div_flow=args.div_flow,
                                  save_path=os.path.join(save_path, 'train'),
-                                 loss_grid_weights=weights_loss_coeffs)
+                                 )
         scheduler.step()
-        train_writer.add_scalar('train loss: flow(EPE)', train_loss['flow'], epoch)
         train_writer.add_scalar('train loss: change(FE)', train_loss['change'], epoch)
         train_writer.add_scalar('learning_rate', scheduler.get_last_lr()[0], epoch)
         print(colored('==> ', 'green') + 'Train average loss:', train_loss['total'])
@@ -221,21 +215,7 @@ if __name__ == "__main__":
                            save_path=os.path.join(save_path, 'val'),
                            writer = val_writer,
                            div_flow=args.div_flow,
-                           loss_grid_weights=weights_loss_coeffs)
-        val_loss_grid, val_mean_epe, val_mean_epe_H_8, val_mean_epe_32, val_mean_epe_16  = \
-            result['total'],result['mEPEs'][0].item(), result['mEPEs'][1].item(), result['mEPEs'][2].item(), result['mEPEs'][3].item()
-
-        print(colored('==> ', 'blue') + 'Val average grid loss :',
-              val_loss_grid)
-        print('mean EPE is {}'.format(val_mean_epe))
-        print('mean EPE from reso H/8 is {}'.format(val_mean_epe_H_8))
-        print('mean EPE from reso 32 is {}'.format(val_mean_epe_32))
-        print('mean EPE from reso 16 is {}'.format(val_mean_epe_16))
-        val_writer.add_scalar('validation images: mean EPE ', val_mean_epe, epoch)
-        val_writer.add_scalar('validation images: mean EPE_from_reso_H_8', val_mean_epe_H_8, epoch)
-        val_writer.add_scalar('validation images: mean EPE_from_reso_32', val_mean_epe_32, epoch)
-        val_writer.add_scalar('validation images: mean EPE_from_reso_16', val_mean_epe_16, epoch)
-        val_writer.add_scalar('validation images: val loss', val_loss_grid, epoch)
+                           )
 
         print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
         print('          Static  |   Change   |   mIoU ')
