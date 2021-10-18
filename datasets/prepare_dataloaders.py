@@ -34,7 +34,7 @@ def prepare_trainval(args,
                                                      target_image_transform=target_img_transforms,
                                                      change_transform=change_transform,
                                                      split='train',
-                                                     img_size=args.img_size
+                                                     img_size=args.train_img_size
                                                      )
     if 'pcd' in args.trainset_list:
         train_datasets['pcd'] =pcd_5fold(root=os.path.join(args.evaluation_data_dir,'pcd_5cv'),
@@ -42,7 +42,7 @@ def prepare_trainval(args,
                                       target_image_transform=target_img_transforms,
                                       change_transform=change_transform,
                                       split= 'train',
-                                      img_size = args.img_size
+                                      img_size = args.train_img_size
                                       )
     if 'changesim_normal' in args.trainset_list:
         train_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.training_data_dir,'Query_Seq_Train'),
@@ -52,7 +52,7 @@ def prepare_trainval(args,
                                       multi_class=args.multi_class,
                                       mapname='*',
                                       seqname='Seq_0',
-                                      img_size= args.img_size
+                                      img_size= args.train_img_size
                                       )
     if 'changesim_dust' in args.trainset_list:
         train_datasets['changesim_dust'] = changesim_eval(root=os.path.join(args.training_data_dir,'Query_Seq_Train'),
@@ -62,7 +62,7 @@ def prepare_trainval(args,
                                       multi_class=args.multi_class,
                                       mapname='*',
                                       seqname='Seq_0_dust',
-                                      img_size= args.img_size
+                                      img_size= args.train_img_size
                                       )
     if 'changesim_dark' in args.trainset_list:
         train_datasets['changesim_dark'] = changesim_eval(root=os.path.join(args.training_data_dir,'Query_Seq_Train'),
@@ -72,7 +72,7 @@ def prepare_trainval(args,
                                       multi_class=args.multi_class,
                                       mapname='*',
                                       seqname='Seq_0_dark',
-                                      img_size= args.img_size
+                                      img_size= args.train_img_size
                                       )
     if 'tsunami' in args.trainset_list:
         train_datasets['tsunami'] = tsunami_eval(root=os.path.join(args.evaluation_data_dir, 'TSUNAMI'),
@@ -80,7 +80,7 @@ def prepare_trainval(args,
                                                       target_image_transform=target_img_transforms,
                                                       change_transform=change_transform,
                                                 split='train',
-                                        img_size = (260, 520)
+                                        img_size = args.train_img_size
 
                                         )
     if 'gsv' in args.trainset_list:
@@ -89,7 +89,7 @@ def prepare_trainval(args,
                                         target_image_transform=target_img_transforms,
                                         change_transform=change_transform,
                                             split='train',
-                                         img_size=(260, 520)
+                                         img_size=args.train_img_size
 
                                          )
     for k, d in train_datasets.items():
@@ -127,16 +127,18 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                           source_image_transform=source_img_transforms,
                                           target_image_transform=source_img_transforms,
                                           change_transform=change_transform,
-                                          split='test'
-                                          )
+                                          split='test',
+                                                        img_size=args.test_img_size
+
+                                                        )
         elif testset == 'pcd':
             test_datasets['pcd'] =pcd_5fold(root=os.path.join(args.evaluation_data_dir,'pcd_5cv'),
                                           source_image_transform=source_img_transforms,
                                           target_image_transform=target_img_transforms,
                                           change_transform=change_transform,
                                           split= 'test',
-                                          img_size = (520,520)
-                                          )
+                                            img_size=args.test_img_size
+                                            )
         elif testset == 'changesim_normal':
             test_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'Query_Seq_Test'),
                                           source_image_transform=source_img_transforms,
@@ -144,8 +146,10 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                           change_transform=change_transform,
                                           multi_class=args.multi_class,
                                           mapname='*',
-                                          seqname='Seq_0'
-                                          )
+                                          seqname='Seq_0',
+                                                               img_size=args.test_img_size
+
+                                                               )
         elif testset == 'changesim_dust':
             test_datasets['changesim_dust'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'Query_Seq_Test'),
                                               source_image_transform=source_img_transforms,
@@ -153,8 +157,10 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                               change_transform=change_transform,
                                               multi_class=args.multi_class,
                                               mapname='*',
-                                              seqname='Seq_0_dust'
-                                              )
+                                              seqname='Seq_0_dust',
+                                                             img_size=args.test_img_size
+
+                                                             )
         elif testset == 'changesim_dark':
             test_datasets['changesim_dark'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'Query_Seq_Test'),
                                               source_image_transform=source_img_transforms,
@@ -162,8 +168,10 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                               change_transform=change_transform,
                                               multi_class=args.multi_class,
                                               mapname='*',
-                                              seqname='Seq_0_dark'
-                                              )
+                                              seqname='Seq_0_dark',
+                                                             img_size=args.test_img_size
+
+                                                             )
         elif testset == 'tunnel_normal':
             test_datasets['tunnel_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'Tunnel'),
                                               source_image_transform=source_img_transforms,
@@ -171,8 +179,10 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                               change_transform=change_transform,
                                               multi_class=args.multi_class,
                                               mapname='*',
-                                              seqname='Seq_0'
-                                              )
+                                              seqname='Seq_0',
+                                                            img_size=args.test_img_size
+
+                                                            )
         elif testset == 'tunnel_dust':
             test_datasets['tunnel_dust'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'Tunnel'),
                                           source_image_transform=source_img_transforms,
@@ -180,8 +190,10 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                           change_transform=change_transform,
                                           multi_class=args.multi_class,
                                           mapname='*',
-                                          seqname='Seq_0_dust'
-                                          )
+                                          seqname='Seq_0_dust',
+                                                          img_size=args.test_img_size
+
+                                                          )
         elif testset == 'tunnel_dark':
             test_datasets['tunnel_dark'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'Tunnel'),
                                           source_image_transform=source_img_transforms,
@@ -189,23 +201,27 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                           change_transform=change_transform,
                                           multi_class=args.multi_class,
                                           mapname='*',
-                                          seqname='Seq_0_dark'
+                                          seqname='Seq_0_dark',
+                                          img_size = args.test_img_size
                                           )
         elif testset == 'tsunami':
             test_datasets['tsunami'] = tsunami_eval(root=os.path.join(args.evaluation_data_dir, 'TSUNAMI'),
                                                           source_image_transform=source_img_transforms,
                                                           target_image_transform=target_img_transforms,
                                                           change_transform=change_transform,
-                                                    split='test'
+                                                    split='test',
+            img_size = args.test_img_size
 
-                                                    )
+            )
         elif testset == 'gsv':
             test_datasets['gsv'] = gsv_eval(root=os.path.join(args.evaluation_data_dir, 'GSV'),
                                                 source_image_transform=source_img_transforms,
                                                 target_image_transform=target_img_transforms,
                                                 change_transform=change_transform,
-                                                    split='test'
-                                                )
+                                                    split='test',
+                                            img_size=args.test_img_size
+
+                                            )
     total_len = 0
     for k, d in test_datasets.items():
         print('LOADING test split of {} ({} pairs)'.format(k,len(d)))

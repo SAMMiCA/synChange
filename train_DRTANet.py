@@ -87,10 +87,13 @@ if __name__ == "__main__":
                         help='adam or adamw')
     parser.add_argument('--scheduler', type=str, default='lambda',
                         help='lambda or multistep')
-    parser.add_argument('--img_size', nargs='+', type=int,
+    parser.add_argument('--train_img_size', nargs='+', type=int,
                         default=[256,256],
                         help='img_size (if you want to use synthetic dataset, this value should be (520,520)')
-    parser.add_argument('--disable_transform', action='store_true',
+    parser.add_argument('--test_img_size', nargs='+', type=int,
+                        default=[256,256],
+                        help='img_size (if you want to use synthetic dataset, this value should be (520,520)')
+    parser.add_argument('--disable_transform', action='store_false',
                         help='if true, do not perform transform when training')
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

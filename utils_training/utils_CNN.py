@@ -39,9 +39,16 @@ def load_checkpoint(model, optimizer=None, scheduler=None, filename='checkpoint.
             model = load_my_state_dict(model,checkpoint['state_dict'])
         else:
             model = load_my_state_dict(model,checkpoint)
+        del checkpoint['state_dict']
 
-        if optimizer is not None: optimizer.load_state_dict(checkpoint['optimizer'])
-        if scheduler is not None: scheduler.load_state_dict(checkpoint['scheduler'])
+        if optimizer is not None:
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            del checkpoint['optimizer']
+
+        if scheduler is not None:
+            scheduler.load_state_dict(checkpoint['scheduler'])
+            del checkpoint['scheduler']
+
         try:
             best_val=checkpoint['best_loss']
         except:
@@ -50,7 +57,7 @@ def load_checkpoint(model, optimizer=None, scheduler=None, filename='checkpoint.
                   .format(filename, start_epoch))
     else:
         print("=> no checkpoint found at '{}'".format(filename))
-
+    del checkpoint
     return model, optimizer, scheduler, start_epoch, best_val
 
 
