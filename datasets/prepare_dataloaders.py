@@ -52,7 +52,7 @@ def prepare_trainval(args,
                                       change_transform=change_transform,
                                       multi_class=args.multi_class,
                                       mapname='*',
-                                      seqname='Seq_0',
+                                      seqname='Seq_[0-1]',
                                       img_size= args.train_img_size
                                       )
     if 'changesim_dust' in args.trainset_list:
@@ -62,7 +62,7 @@ def prepare_trainval(args,
                                       change_transform=change_transform,
                                       multi_class=args.multi_class,
                                       mapname='*',
-                                      seqname='Seq_0_dust',
+                                      seqname='Seq_[0-1]_dust',
                                       img_size= args.train_img_size
                                       )
     if 'changesim_dark' in args.trainset_list:
@@ -72,7 +72,7 @@ def prepare_trainval(args,
                                       change_transform=change_transform,
                                       multi_class=args.multi_class,
                                       mapname='*',
-                                      seqname='Seq_0_dark',
+                                      seqname='Seq_[0-1]_dark',
                                       img_size= args.train_img_size
                                       )
     if 'tsunami' in args.trainset_list:
@@ -171,7 +171,7 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                           change_transform=change_transform,
                                           multi_class=args.multi_class,
                                           mapname='*',
-                                          seqname='Seq_0',
+                                          seqname='Seq_[0-1]',
                                                                img_size=args.test_img_size
 
                                                                )
@@ -182,7 +182,7 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                               change_transform=change_transform,
                                               multi_class=args.multi_class,
                                               mapname='*',
-                                              seqname='Seq_0_dust',
+                                              seqname='Seq_[0-1]_dust',
                                                              img_size=args.test_img_size
 
                                                              )
@@ -193,7 +193,7 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                               change_transform=change_transform,
                                               multi_class=args.multi_class,
                                               mapname='*',
-                                              seqname='Seq_0_dark',
+                                              seqname='Seq_[0-1]_dark',
                                                              img_size=args.test_img_size
 
                                                              )
