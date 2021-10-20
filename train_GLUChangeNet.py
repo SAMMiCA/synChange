@@ -12,7 +12,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
 import torch.optim.lr_scheduler as lr_scheduler
-from utils_training.optimize_GLUChangeNet import train_epoch, validate_epoch, test_epoch, train_change
+from utils_training.optimize_GLUChangeNet import train_epoch, validate_epoch, test_epoch
 from models.our_models.GLUChangeNet import GLUChangeNet_model
 from utils_training.utils_CNN import load_checkpoint, save_checkpoint, boolean_string
 from tensorboardX import SummaryWriter
@@ -48,7 +48,7 @@ if __name__ == "__main__":
                         help='if true, do pixel-adaptive convolution when decoding')
 
     # Optimization parameters
-    parser.add_argument('--lr', type=float, default=0.0002, help='learning rate')
+    parser.add_argument('--lr', type=float, default=0.0001, help='learning rate')
     parser.add_argument('--momentum', type=float,
                         default=4e-4, help='momentum constant')
     parser.add_argument('--start_epoch', type=int, default=-1,
@@ -82,11 +82,16 @@ if __name__ == "__main__":
                         help='adam or adamw')
     parser.add_argument('--scheduler', type=str, default='multistep',
                         help='lambda or multistep')
-    parser.add_argument('--img_size', nargs='+', type=int,
-                        default=[520, 520],
+    parser.add_argument('--train_img_size', nargs='+', type=int,
+                        default=[520,520],
+                        help='img_size (if you want to use synthetic dataset, this value should be (520,520)')
+    parser.add_argument('--test_img_size', nargs='+', type=int,
+                        default=[520,520],
                         help='img_size (if you want to use synthetic dataset, this value should be (520,520)')
     parser.add_argument('--disable_transform', action='store_true',
                         help='if true, do not perform transform when training')
+    parser.add_argument('--img_norm_type',type=str, default='z_score',
+                        help='z_score or min_max')
 
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -101,7 +106,6 @@ if __name__ == "__main__":
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
-
 
     # transforms
     source_img_transforms, target_img_transforms,co_transform, flow_transform, change_transform = prepare_transforms(args)
@@ -186,7 +190,7 @@ if __name__ == "__main__":
     for epoch in range(start_epoch, args.n_epoch):
         print('starting epoch {}:  learning rate is {}'.format(epoch, scheduler.get_last_lr()[0]))
 
-        train_loss = train_epoch(model,
+        train_loss = train_epoch(args, model,
                                  optimizer,
                                  train_dataloader,
                                  device,
@@ -209,7 +213,7 @@ if __name__ == "__main__":
                         False, save_path, 'epoch_{}.pth'.format(epoch + 1))
 
         for dataset_name,test_dataloader in test_dataloaders.items():
-            result = test_epoch(model, test_dataloader, device, epoch=epoch,
+            result = test_epoch(args, model, test_dataloader, device, epoch=epoch,
                        save_path=os.path.join(save_path, dataset_name),
                        writer=val_writer,
                        div_flow=args.div_flow,
@@ -223,7 +227,7 @@ if __name__ == "__main__":
 
         # Validation
         result = \
-            validate_epoch(model, val_dataloader, device, epoch=epoch,
+            validate_epoch(args, model, val_dataloader, device, epoch=epoch,
                            save_path=os.path.join(save_path, 'val'),
                            writer = val_writer,
                            div_flow=args.div_flow,

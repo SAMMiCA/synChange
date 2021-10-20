@@ -18,7 +18,7 @@ for set_name in ['set0','set1','set2','set3','set4']:
 
         for idx,(t0_t1_mask) in enumerate(paths):
             t0_path, _, _ = t0_t1_mask.split(' ')
-            t0_path = os.path.join('dataset/test_datasets/pcd_5cv',set_name,split,t0_path)
+            t0_path = os.path.join('../dataset/test_datasets/pcd_5cv',set_name,split,t0_path)
             img_t0 = cv2.imread(t0_path, 1)
             img_t0 = cv2.resize(img_t0, (128,128))
             if idx % 120 < 60:
