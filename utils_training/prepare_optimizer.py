@@ -10,7 +10,8 @@ def prepare_optim(args,model):
     elif args.optim =='adam': # DR-TANet
 
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()),
-                               lr=args.lr, betas=(0.9, 0.999))
+                               lr=args.lr, betas=(0.9, 0.999),
+                               weight_decay=args.weight_decay)
     else: raise NotImplementedError
 
     # Scheduler

@@ -10,7 +10,7 @@ import torchvision.transforms as tf
 import os
 from torchnet.meter.confusionmeter import ConfusionMeter
 import torch.nn as nn
-
+from utils_training.preprocess_batch import pre_process_data, pre_process_change
 
 
 class criterion_CEloss(nn.Module):
@@ -32,81 +32,6 @@ def IoU(conf_matrix):
         iou = true_positive / (true_positive + false_positive + false_negative)
 
     return iou, np.nanmean(iou)
-
-def pre_process_data(source_img, target_img, device):
-    '''
-    Pre-processes source and target images before passing it to the network
-    :param source_img: Torch tensor Bx3xHxW
-    :param target_img: Torch tensor Bx3xHxW
-    :param device: cpu or gpu
-    :return:
-    source_img_copy: Torch tensor Bx3xHxW, source image scaled to 0-1 and mean-centered and normalized
-                     using mean and standard deviation of ImageNet
-    target_img_copy: Torch tensor Bx3xHxW, target image scaled to 0-1 and mean-centered and normalized
-                     using mean and standard deviation of ImageNet
-    source_img_256: Torch tensor Bx3x256x256, source image rescaled to 256x256, scaled to 0-1 and mean-centered and normalized
-                    using mean and standard deviation of ImageNet
-    target_img_256: Torch tensor Bx3x256x256, target image rescaled to 256x256, scaled to 0-1 and mean-centered and normalized
-                    using mean and standard deviation of ImageNet
-    '''
-    # img has shape bx3xhxw
-    b, _, h_scale, w_scale = target_img.shape
-    mean_vector = np.array([0.485, 0.456, 0.406])
-    std_vector = np.array([0.229, 0.224, 0.225])
-
-    # original resolution
-    source_img_copy = source_img.float().to(device).div(255.0)
-    target_img_copy = target_img.float().to(device).div(255.0)
-    mean = torch.as_tensor(mean_vector, dtype=source_img_copy.dtype, device=source_img_copy.device)
-    std = torch.as_tensor(std_vector, dtype=source_img_copy.dtype, device=source_img_copy.device)
-    source_img_copy.sub_(mean[:, None, None]).div_(std[:, None, None])
-    target_img_copy.sub_(mean[:, None, None]).div_(std[:, None, None])
-
-    # resolution 256x256
-    source_img_256 = torch.nn.functional.interpolate(input=source_img.float().to(device),
-                                                      size=(256, 256),
-                                                      mode='area').byte()
-    target_img_256 = torch.nn.functional.interpolate(input=target_img.float().to(device),
-                                                      size=(256, 256),
-                                                      mode='area').byte()
-
-    source_img_256 = source_img_256.float().div(255.0)
-    target_img_256 = target_img_256.float().div(255.0)
-    source_img_256.sub_(mean[:, None, None]).div_(std[:, None, None])
-    target_img_256.sub_(mean[:, None, None]).div_(std[:, None, None])
-
-    return source_img_copy, target_img_copy, source_img_256, target_img_256
-
-def pre_process_change(source_mask, target_mask, device):
-    '''
-    Pre-processes source and target images before passing it to the network
-    :param source_mask: Torch tensor BxHxW
-    :param target_mask: Torch tensor BxHxW
-    :param device: cpu or gpu
-    :return:
-    source_img_copy: Torch tensor Bx1xHxW, source image
-    target_img_copy: Torch tensor Bx1xHxW, target image
-    source_img_256: Torch tensor Bx1x256x256, source image rescaled to 256x256
-    target_img_256: Torch tensor Bx1x256x256, target image rescaled to 256x256
-    '''
-    # img has shape bxhxw
-    b, h_scale, w_scale = target_mask.shape
-    # original resolution
-    source_img_copy = source_mask.long().to(device)[:,None,...]
-    target_img_copy = target_mask.long().to(device)[:,None,...]
-
-    # resolution 256x256
-    source_img_256 = torch.nn.functional.interpolate(input=source_mask.float().to(device)[:,None,...],
-                                                     size=(256, 256),
-                                                     mode='nearest')
-    target_img_256 = torch.nn.functional.interpolate(input=target_mask.float().to(device)[:,None,...],
-                                                     size=(256, 256),
-                                                     mode='nearest')
-
-    source_img_256 = source_img_256.long()
-    target_img_256 = target_img_256.long()
-
-    return source_img_copy, target_img_copy, source_img_256, target_img_256
 
 def plot_during_training(save_path, epoch, batch, apply_mask,
                          h_original, w_original, h_256, w_256,
@@ -346,18 +271,15 @@ def plot_during_training3(save_path, epoch, batch,
 
 
 
-def train_epoch(net,
+def train_epoch(args, net,
                 optimizer,
                 train_loader,
                 device,
                 epoch,
                 writer,
-                div_flow=1.0,
-                save_path=None,
-                loss_grid_weights=None,
-                apply_mask=False,
-                robust_L1_loss=False,
-                sparse=False):
+                save_path,
+
+):
     """
     Training epoch script
     Args:
@@ -367,12 +289,6 @@ def train_epoch(net,
         device: `cpu` or `gpu`
         epoch: epoch number for plotting
         writer: for tensorboard
-        div_flow: multiplicative factor to apply to the estimated flow
-        save_path: path to folder to save the plots
-        loss_grid_weights: weight coefficients for each level of the feature pyramid
-        apply_mask: bool on whether or not to apply a mask for the loss
-        robust_L1_loss: bool on the loss to use
-        sparse: bool on sparsity of ground truth flow field
     Output:
         running_total_loss: total training loss
 
@@ -394,7 +310,7 @@ def train_epoch(net,
         source_image, target_image, source_image_256, target_image_256 = \
             pre_process_data(mini_batch['source_image'],
             mini_batch['target_image'],
-            device=device)
+            device=device, norm=args.img_norm_type)
         source_change, target_change, source_change_256, target_change_256 = \
             pre_process_change(mini_batch['source_change'],
             mini_batch['target_change'],
@@ -515,7 +431,7 @@ def validate_epoch(net,
 
 
 
-def test_epoch(net,
+def test_epoch(args, net,
                test_loader,
                device,
                epoch,
@@ -563,7 +479,8 @@ def test_epoch(net,
             source_image, target_image, source_image_256, target_image_256 = pre_process_data(
                 mini_batch['source_image'],
                 mini_batch['target_image'],
-                device=device)
+                device=device,
+                norm = args.img_norm_type)
             source_change, target_change, source_change_256, target_change_256 = \
                 pre_process_change(mini_batch['source_change'],
                                    mini_batch['target_change'],

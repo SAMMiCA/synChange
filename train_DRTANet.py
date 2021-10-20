@@ -66,18 +66,16 @@ if __name__ == "__main__":
                         help='test batch size')
     parser.add_argument('--n_threads', type=int, default=4,
                         help='number of parallel threads for dataloaders')
-    parser.add_argument('--weight-decay', type=float, default=4e-4,
+    parser.add_argument('--weight-decay', type=float, default=0.0,
                         help='weight decay constant')
-    parser.add_argument('--div_flow', type=float, default=1.0,
-                        help='div flow')
     parser.add_argument('--seed', type=int, default=1986,
                         help='Pseudo-RNG seed')
     parser.add_argument('--split_ratio', type=float, default=0.99,
                         help='train/val split ratio')
     parser.add_argument('--split2_ratio', type=float, default=0.001,
                         help='val/not-used split ratio (if 0.9, use 90% of val samples)')
-    parser.add_argument('--plot_interval', type=int, default=10,
-                        help='plot every N iteration')
+    parser.add_argument('--plot_interval', type=int, default=1,
+                        help='plot every N iteration in test_epoch')
     parser.add_argument('--test_interval', type=int, default=10,
                         help='test every N epoch')
     parser.add_argument('--milestones', nargs='+', type=int,
@@ -95,6 +93,8 @@ if __name__ == "__main__":
                         help='img_size (if you want to use synthetic dataset, this value should be (520,520)')
     parser.add_argument('--disable_transform', action='store_false',
                         help='if true, do not perform transform when training')
+    parser.add_argument('--img_norm_type',type=str, default='min_max',
+                        help='z_score or min_max')
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print('device:{}'.format(device))
@@ -183,13 +183,12 @@ if __name__ == "__main__":
     for epoch in range(start_epoch, args.n_epoch):
         print('starting epoch {}:  learning rate is {}'.format(epoch, scheduler.get_last_lr()[0]))
 
-        train_loss = train_epoch(model,
+        train_loss = train_epoch(args, model,
                                  optimizer,
                                  train_dataloader,
                                  device,
                                  epoch,
                                  train_writer,
-                                 div_flow=args.div_flow,
                                  save_path=os.path.join(save_path, 'train'),
                                  )
         scheduler.step()
@@ -206,10 +205,9 @@ if __name__ == "__main__":
 
         if epoch % args.test_interval == 0:
             for dataset_name,test_dataloader in test_dataloaders.items():
-                result = test_epoch(model, test_dataloader, device, epoch=epoch,
+                result = test_epoch(args, model, test_dataloader, device, epoch=epoch,
                            save_path=os.path.join(save_path, dataset_name),
                            writer=val_writer,
-                           div_flow=args.div_flow,
                            plot_interval=args.plot_interval)
                 print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
                 print('          Static  |   Change   |   mIoU ')
@@ -223,7 +221,6 @@ if __name__ == "__main__":
                 validate_epoch(model, val_dataloader, device, epoch=epoch,
                                save_path=os.path.join(save_path, 'val'),
                                writer = val_writer,
-                               div_flow=args.div_flow,
                                )
 
             print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
