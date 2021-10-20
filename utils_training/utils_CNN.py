@@ -37,9 +37,9 @@ def load_checkpoint(model, optimizer=None, scheduler=None, filename='checkpoint.
             pass
         if 'state_dict' in checkpoint.keys():
             model = load_my_state_dict(model,checkpoint['state_dict'])
+            del checkpoint['state_dict']
         else:
             model = load_my_state_dict(model,checkpoint)
-        del checkpoint['state_dict']
 
         if optimizer is not None:
             optimizer.load_state_dict(checkpoint['optimizer'])

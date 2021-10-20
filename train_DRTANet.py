@@ -95,6 +95,10 @@ if __name__ == "__main__":
                         help='if true, do not perform transform when training')
     parser.add_argument('--img_norm_type',type=str, default='min_max',
                         help='z_score or min_max')
+    parser.add_argument('--rgb_order', type=str, default='bgr',
+                        help='rgb or bgr')
+    parser.add_argument('--test_only', action='store_true',
+                        help='if true, do test only')
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print('device:{}'.format(device))
@@ -112,12 +116,12 @@ if __name__ == "__main__":
     source_img_transforms, target_img_transforms,co_transform, flow_transform, change_transform = prepare_transforms(args)
 
     # dataloaders
-    train_dataloader, val_dataloader = prepare_trainval(args, transforms.Compose([ArrayToTensor(get_float=False)]),
-                                                        transforms.Compose([ArrayToTensor(get_float=False)]),
-                     flow_transform, co_transform, change_transform)
+    train_dataloader, val_dataloader = prepare_trainval(args, source_img_transforms,
+                                                        target_img_transforms,
+                                                        flow_transform, co_transform, change_transform)
     test_dataloaders = prepare_test(args, source_img_transforms=transforms.Compose([ArrayToTensor(get_float=False)]),
                                     target_img_transforms=transforms.Compose([ArrayToTensor(get_float=False)]),
-                     flow_transform=flow_transform, co_transform=None, change_transform=change_transform)
+                                    flow_transform=flow_transform, co_transform=None, change_transform=change_transform)
 
     # models
     model = TANet()
@@ -179,64 +183,75 @@ if __name__ == "__main__":
     model = model.to(device)
 
     train_started = time.time()
+    if not args.test_only:
+        for epoch in range(start_epoch, args.n_epoch):
+            print('starting epoch {}:  learning rate is {}'.format(epoch, scheduler.get_last_lr()[0]))
 
-    for epoch in range(start_epoch, args.n_epoch):
-        print('starting epoch {}:  learning rate is {}'.format(epoch, scheduler.get_last_lr()[0]))
+            train_loss = train_epoch(args, model,
+                                     optimizer,
+                                     train_dataloader,
+                                     device,
+                                     epoch,
+                                     train_writer,
+                                     save_path=os.path.join(save_path, 'train'),
+                                     )
+            scheduler.step()
+            train_writer.add_scalar('train loss: change(FE)', train_loss['change'], epoch)
+            train_writer.add_scalar('learning_rate', scheduler.get_last_lr()[0], epoch)
+            print(colored('==> ', 'green') + 'Train average loss:', train_loss['total'])
 
-        train_loss = train_epoch(args, model,
-                                 optimizer,
-                                 train_dataloader,
-                                 device,
-                                 epoch,
-                                 train_writer,
-                                 save_path=os.path.join(save_path, 'train'),
-                                 )
-        scheduler.step()
-        train_writer.add_scalar('train loss: change(FE)', train_loss['change'], epoch)
-        train_writer.add_scalar('learning_rate', scheduler.get_last_lr()[0], epoch)
-        print(colored('==> ', 'green') + 'Train average loss:', train_loss['total'])
-
-        save_checkpoint({'epoch': epoch + 1,
-                         'state_dict': model.module.state_dict(),
-                         'optimizer': optimizer.state_dict(),
-                         'scheduler': scheduler.state_dict(),
-                         'best_loss': 9999999},
-                        False, save_path, 'epoch_{}.pth'.format(epoch + 1))
-
-        if epoch % args.test_interval == 0:
-            for dataset_name,test_dataloader in test_dataloaders.items():
-                result = test_epoch(args, model, test_dataloader, device, epoch=epoch,
-                           save_path=os.path.join(save_path, dataset_name),
-                           writer=val_writer,
-                           plot_interval=args.plot_interval)
-                print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
-                print('          Static  |   Change   |   mIoU ')
-                print('          %7.2f %7.2f %7.2f ' %
-                      (result['IoUs'][0], result['IoUs'][-1], result['mIoU']))
-
-
-
-            # Validation
-            result = \
-                validate_epoch(model, val_dataloader, device, epoch=epoch,
-                               save_path=os.path.join(save_path, 'val'),
-                               writer = val_writer,
-                               )
-
-            print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
-            print('          Static  |   Change   |   mIoU ')
-            print('          %7.2f %7.2f %7.2f ' %
-                  (result['IoUs'][0], result['IoUs'][-1], result['mIoU']))
-            print(colored('==> ', 'blue') + 'finished epoch :', epoch + 1)
-
-            # save checkpoint for each epoch and a fine called best_model so far
-            is_best = result['f1'] < best_val
-            best_val = min(result['f1'], best_val)
             save_checkpoint({'epoch': epoch + 1,
                              'state_dict': model.module.state_dict(),
                              'optimizer': optimizer.state_dict(),
                              'scheduler': scheduler.state_dict(),
-                             'best_loss': best_val},
-                            is_best, save_path, 'epoch_{}.pth'.format(epoch + 1))
+                             'best_loss': 9999999},
+                            False, save_path, 'epoch_{}.pth'.format(epoch + 1))
 
-    print(args.seed, 'Training took:', time.time()-train_started, 'seconds')
+            if epoch % args.test_interval == 0:
+                for dataset_name,test_dataloader in test_dataloaders.items():
+                    result = test_epoch(args, model, test_dataloader, device, epoch=epoch,
+                               save_path=os.path.join(save_path, dataset_name),
+                               writer=val_writer,
+                               plot_interval=args.plot_interval)
+                    print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
+                    print('          Static  |   Change   |   mIoU ')
+                    print('          %7.2f %7.2f %7.2f ' %
+                          (result['IoUs'][0], result['IoUs'][-1], result['mIoU']))
+
+
+
+                # Validation
+                result = \
+                    validate_epoch(args, model, val_dataloader, device, epoch=epoch,
+                                   save_path=os.path.join(save_path, 'val'),
+                                   writer = val_writer,
+                                   )
+
+                print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
+                print('          Static  |   Change   |   mIoU ')
+                print('          %7.2f %7.2f %7.2f ' %
+                      (result['IoUs'][0], result['IoUs'][-1], result['mIoU']))
+                print(colored('==> ', 'blue') + 'finished epoch :', epoch + 1)
+
+                # save checkpoint for each epoch and a fine called best_model so far
+                is_best = result['f1'] < best_val
+                best_val = min(result['f1'], best_val)
+                save_checkpoint({'epoch': epoch + 1,
+                                 'state_dict': model.module.state_dict(),
+                                 'optimizer': optimizer.state_dict(),
+                                 'scheduler': scheduler.state_dict(),
+                                 'best_loss': best_val},
+                                is_best, save_path, 'epoch_{}.pth'.format(epoch + 1))
+
+        print(args.seed, 'Training took:', time.time()-train_started, 'seconds')
+
+    else:
+        for dataset_name, test_dataloader in test_dataloaders.items():
+            result = test_epoch(args, model, test_dataloader, device, epoch=start_epoch,
+                                save_path=os.path.join(save_path, dataset_name),
+                                writer=val_writer,
+                                plot_interval=args.plot_interval)
+            print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
+            print('          Static  |   Change   |   mIoU ')
+            print('          %7.2f %7.2f %7.2f ' %
+                  (result['IoUs'][0], result['IoUs'][-1], result['mIoU']))

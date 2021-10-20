@@ -1,7 +1,27 @@
 import numpy as np
 import torch
 
-def pre_process_data(source_img, target_img, device, norm='z_score'):
+def post_process_single_img_data(source_img, target_img, norm='z_score', color_order ='rgb'):
+    # resolution original
+    if norm=='z_score':
+        mean_values = torch.tensor([0.485, 0.456, 0.406],
+                                   dtype=source_img.dtype).view(3, 1, 1)
+        std_values = torch.tensor([0.229, 0.224, 0.225],
+                                  dtype=source_img.dtype).view(3, 1, 1)
+        image_1 = (source_img.detach().cpu() * std_values +
+                   mean_values).clamp(0, 1).permute(1, 2, 0)*255
+        image_2 = (target_img.detach().cpu() * std_values +
+                   mean_values).clamp(0, 1).permute(1, 2, 0)*255
+        return image_1, image_2
+
+    elif norm == 'min_max':
+        image_1 = (source_img.detach().cpu().permute(1,2,0)+1) * 128
+        image_2 = (target_img.detach().cpu().permute(1,2,0)+1) * 128
+        return image_1, image_2
+
+
+
+def pre_process_data(source_img, target_img, device, norm='z_score', rgb_order = 'rgb'):
     '''
     Pre-processes source and target images before passing it to the network
     :param source_img: Torch tensor Bx3xHxW
@@ -19,7 +39,9 @@ def pre_process_data(source_img, target_img, device, norm='z_score'):
     '''
     # img has shape bx3xhxw
     b, _, h_scale, w_scale = target_img.shape
-
+    if rgb_order == 'bgr':
+        source_img = source_img[:,[2,1,0]]
+        target_img = target_img[:,[2,1,0]]
     if norm == 'z_score':
         mean_vector = np.array([0.485, 0.456, 0.406])
         std_vector = np.array([0.229, 0.224, 0.225])
@@ -44,7 +66,6 @@ def pre_process_data(source_img, target_img, device, norm='z_score'):
         target_img_256 = target_img_256.float().div(255.0)
         source_img_256.sub_(mean[:, None, None]).div_(std[:, None, None])
         target_img_256.sub_(mean[:, None, None]).div_(std[:, None, None])
-
     elif norm == 'min_max':
         # original resolution
         source_img_copy = source_img.float().to(device).div(128.0) - 1.0

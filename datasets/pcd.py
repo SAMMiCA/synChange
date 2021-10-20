@@ -7,7 +7,7 @@ from os.path import join as pjoin, splitext as spt
 from glob import glob
 import torchvision.transforms as transforms
 import albumentations as A
-
+from natsort import natsorted
 def check_validness(f):
     return any([i in spt(f)[1] for i in ['jpg','png']])
 
@@ -27,7 +27,7 @@ class pcd_5fold(Dataset):
         with open(pjoin(root, 'tsunami_or_gsv.txt'), 'r') as f:
             self.tsunami_or_gsv = f.readlines()
             self.tsunami_or_gsv = {line.split(' ')[0]:line.split(' ')[1] for line in self.tsunami_or_gsv}
-        self.paths = {'GT':glob(pjoin(root,'mask','*.png'))}
+        self.paths = {'GT':natsorted(glob(pjoin(root,'mask','*.png')))}
         if tsunami_or_gsv == 'tsunami':
             self.paths['GT'] = [path for path in self.paths['GT'] if not int(self.tsunami_or_gsv[path.split('/')[-1]])]
         elif tsunami_or_gsv == 'gsv':

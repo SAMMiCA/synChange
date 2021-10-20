@@ -10,7 +10,7 @@ import torchvision.transforms as tf
 import os
 from torchnet.meter.confusionmeter import ConfusionMeter
 import torch.nn as nn
-from utils_training.preprocess_batch import pre_process_data, pre_process_change
+from utils_training.preprocess_batch import pre_process_data, pre_process_change, post_process_single_img_data
 
 
 class criterion_CEloss(nn.Module):
@@ -233,15 +233,17 @@ def plot_during_training3(save_path, epoch, batch,
                          target_change_original,
                          out_change_orig,
                          return_img = False):
-    # resolution original
-    mean_values = torch.tensor([0.485, 0.456, 0.406],
-                               dtype=source_image.dtype).view(3, 1, 1)
-    std_values = torch.tensor([0.229, 0.224, 0.225],
-                              dtype=source_image.dtype).view(3, 1, 1)
-    image_1 = (source_image.detach()[0].cpu() * std_values +
-               mean_values).clamp(0, 1).permute(1, 2, 0)
-    image_2 = (target_image.detach()[0].cpu() * std_values +
-               mean_values).clamp(0, 1).permute(1, 2, 0)
+    image_1,image_2 = post_process_single_img_data(source_image[0],target_image[0],norm='z_score')
+    # # resolution original
+    # mean_values = torch.tensor([0.485, 0.456, 0.406],
+    #                            dtype=source_image.dtype).view(3, 1, 1)
+    # std_values = torch.tensor([0.229, 0.224, 0.225],
+    #                           dtype=source_image.dtype).view(3, 1, 1)
+    # image_1 = (source_image.detach()[0].cpu() * std_values +
+    #            mean_values).clamp(0, 1).permute(1, 2, 0)
+    # image_2 = (target_image.detach()[0].cpu() * std_values +
+    #            mean_values).clamp(0, 1).permute(1, 2, 0)
+
     if target_change_original is not None:
         target_change_original = 50*target_change_original[0].cpu().squeeze()
     out_change_original = F.interpolate(out_change_orig,(h_original, w_original),
@@ -310,7 +312,7 @@ def train_epoch(args, net,
         source_image, target_image, source_image_256, target_image_256 = \
             pre_process_data(mini_batch['source_image'],
             mini_batch['target_image'],
-            device=device, norm=args.img_norm_type)
+            device=device, norm=args.img_norm_type,rgb_order=args.rgb_order)
         source_change, target_change, source_change_256, target_change_256 = \
             pre_process_change(mini_batch['source_change'],
             mini_batch['target_change'],
@@ -347,7 +349,7 @@ def train_epoch(args, net,
                 )
 
 
-def validate_epoch(net,
+def validate_epoch(args, net,
                    val_loader,
                    device,
                    epoch,
@@ -397,10 +399,10 @@ def validate_epoch(net,
         CE_array = torch.zeros([len(loss_grid_weights), len(val_loader)], dtype=torch.float32, device=device)
 
         for i, mini_batch in pbar:
-            source_image, target_image, source_image_256, target_image_256 = pre_process_data(
-                mini_batch['source_image'],
-                mini_batch['target_image'],
-                device=device)
+            source_image, target_image, source_image_256, target_image_256 = \
+                pre_process_data(mini_batch['source_image'],
+                                 mini_batch['target_image'],
+                                 device=device, norm=args.img_norm_type, rgb_order=args.rgb_order)
             source_change, target_change, source_change_256, target_change_256 = \
                 pre_process_change(mini_batch['source_change'],
                                    mini_batch['target_change'],
@@ -476,11 +478,10 @@ def test_epoch(args, net,
     with torch.no_grad():
         pbar = tqdm(enumerate(test_loader), total=len(test_loader))
         for i, mini_batch in pbar:
-            source_image, target_image, source_image_256, target_image_256 = pre_process_data(
-                mini_batch['source_image'],
-                mini_batch['target_image'],
-                device=device,
-                norm = args.img_norm_type)
+            source_image, target_image, source_image_256, target_image_256 = \
+                pre_process_data(mini_batch['source_image'],
+                                 mini_batch['target_image'],
+                                 device=device, norm=args.img_norm_type, rgb_order=args.rgb_order)
             source_change, target_change, source_change_256, target_change_256 = \
                 pre_process_change(mini_batch['source_change'],
                                    mini_batch['target_change'],
@@ -492,18 +493,11 @@ def test_epoch(args, net,
 
             bs, _, h_original, w_original = source_image.shape
             bs, _, h_256, w_256 = source_image_256.shape
-            flow_gt_original = mini_batch['flow_map'].to(device)
-            if flow_gt_original.shape[1] != 2:
-                # shape is bxhxwx2
-                flow_gt_original = flow_gt_original.permute(0, 3, 1, 2)
-            flow_gt_256 = flow_gt_original
-
-
 
             if i % plot_interval == 0:
                 vis_img = plot_during_training3(save_path, epoch, i,
                                                h_original, w_original,
-                                               source_image, target_image,
+                                               mini_batch['source_image'], mini_batch['target_image'],
                                                target_change_original=target_change,
                                                out_change_orig=out_change_orig,
                                                return_img=True)

@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 def prepare_trainval(args,
                      source_img_transforms,target_img_transforms,
                      flow_transform,co_transform,change_transform):
+    if args.test_only: return None, None
 
     train_datasets, val_datasets = {},{}
 
