@@ -8,14 +8,13 @@ def prepare_optim(args,model):
                        lr=args.lr,
                        weight_decay=args.weight_decay)
     elif args.optim =='adam': # DR-TANet
-
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()),
                                lr=args.lr, betas=(0.9, 0.999),
                                weight_decay=args.weight_decay)
     else: raise NotImplementedError
 
     # Scheduler
-    if args.scheduler == 'multstep': # GLU-CHANGENet
+    if args.scheduler == 'multistep': # GLU-CHANGENet
         scheduler = lr_scheduler.MultiStepLR(optimizer,
                                              milestones=args.milestones,
                                              gamma=0.5)
