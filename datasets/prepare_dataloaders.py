@@ -92,17 +92,20 @@ def prepare_trainval(args,
                                          img_size=args.train_img_size
 
                                          )
+    print('-------------------------------------------------------------')
+
     for k, d in train_datasets.items():
-        print('LOADING train split of {} ({} pairs)'.format(k,len(d)))
+        print('- LOADING train split of {} ({} pairs)'.format(k,len(d)))
 
     train_dataset = torch.utils.data.ConcatDataset([ d for k,d in train_datasets.items()])
     print('# of training samples in total: ({} pairs)'.format(len(train_dataset)))
 
     for k, d in val_datasets.items():
-        print('LOADING val split of {} ({} pairs)'.format(k,len(d)))
+        print('- LOADING val split of {} ({} pairs)'.format(k,len(d)))
 
     val_dataset = torch.utils.data.ConcatDataset([ d for k,d in val_datasets.items()])
     print('# of validataion samples in total: ({} pairs)'.format(len(val_dataset)))
+    print('-------------------------------------------------------------')
 
     # Dataloader
     train_dataloader = DataLoader(train_dataset,
@@ -137,8 +140,29 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                           target_image_transform=target_img_transforms,
                                           change_transform=change_transform,
                                           split= 'test',
+                                          tsunami_or_gsv='both',
                                             img_size=args.test_img_size
                                             )
+        elif testset == 'tsunami':
+            test_datasets['tsunami'] =pcd_5fold(root=os.path.join(args.evaluation_data_dir,'pcd_5cv'),
+                                          source_image_transform=source_img_transforms,
+                                          target_image_transform=target_img_transforms,
+                                          change_transform=change_transform,
+                                          split= 'test',
+                                            tsunami_or_gsv='tsunami',
+
+                                                img_size=args.test_img_size
+                                            )
+        elif testset == 'gsv':
+            test_datasets['gsv'] =pcd_5fold(root=os.path.join(args.evaluation_data_dir,'pcd_5cv'),
+                                          source_image_transform=source_img_transforms,
+                                          target_image_transform=target_img_transforms,
+                                          change_transform=change_transform,
+                                          split= 'test',
+                                            tsunami_or_gsv='gsv',
+                                            img_size=args.test_img_size
+                                            )
+
         elif testset == 'changesim_normal':
             test_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'Query_Seq_Test'),
                                           source_image_transform=source_img_transforms,
@@ -204,29 +228,13 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                           seqname='Seq_0_dark',
                                           img_size = args.test_img_size
                                           )
-        elif testset == 'tsunami':
-            test_datasets['tsunami'] = tsunami_eval(root=os.path.join(args.evaluation_data_dir, 'TSUNAMI'),
-                                                          source_image_transform=source_img_transforms,
-                                                          target_image_transform=target_img_transforms,
-                                                          change_transform=change_transform,
-                                                    split='test',
-            img_size = args.test_img_size
 
-            )
-        elif testset == 'gsv':
-            test_datasets['gsv'] = gsv_eval(root=os.path.join(args.evaluation_data_dir, 'GSV'),
-                                                source_image_transform=source_img_transforms,
-                                                target_image_transform=target_img_transforms,
-                                                change_transform=change_transform,
-                                                    split='test',
-                                            img_size=args.test_img_size
-
-                                            )
     total_len = 0
     for k, d in test_datasets.items():
-        print('LOADING test split of {} ({} pairs)'.format(k,len(d)))
+        print('- LOADING test split of {} ({} pairs)'.format(k,len(d)))
         total_len+=len(d)
     print('# of test samples in total: ({} pairs)'.format(total_len))
+    print('-------------------------------------------------------------')
 
     test_dataloaders = {k:DataLoader(test_dataset,batch_size=args.test_batch_size,shuffle=False,num_workers=args.n_threads)
                         for k, test_dataset in test_datasets.items()}

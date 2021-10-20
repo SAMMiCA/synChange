@@ -18,12 +18,23 @@ class pcd_5fold(Dataset):
                  change_transform=None,
                  fold=0,
                  split='train', # train or test,
+                 tsunami_or_gsv = 'both',
                  img_size = (520,520)
     ):
         super(pcd_5fold, self).__init__()
         fold_name = 'set{}'.format(str(fold))
         root = pjoin(root,fold_name,split)
+        with open(pjoin(root, 'tsunami_or_gsv.txt'), 'r') as f:
+            self.tsunami_or_gsv = f.readlines()
+            self.tsunami_or_gsv = {line.split(' ')[0]:line.split(' ')[1] for line in self.tsunami_or_gsv}
         self.paths = {'GT':glob(pjoin(root,'mask','*.png'))}
+        if tsunami_or_gsv == 'tsunami':
+            self.paths['GT'] = [path for path in self.paths['GT'] if not int(self.tsunami_or_gsv[path.split('/')[-1]])]
+        elif tsunami_or_gsv == 'gsv':
+            self.paths['GT'] = [path for path in self.paths['GT'] if int(self.tsunami_or_gsv[path.split('/')[-1]])]
+        elif tsunami_or_gsv == 'both':
+            pass
+        import pdb; pdb.set_trace()
 
         query_paths, ref_paths = [],[]
         for gtpath in self.paths['GT']:
