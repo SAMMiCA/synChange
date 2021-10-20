@@ -46,7 +46,7 @@ import torch.nn.functional as F
 
 class FocalLoss(nn.Module):
 
-    def __init__(self, gamma=2.0, alpha=[0.1,1.0,1.0,1.0,1.0], size_average=True,device='cuda'):
+    def __init__(self, gamma=2.0, alpha=[1.0,1.0,1.0,1.0,1.0], size_average=True,device='cuda'):
         super(FocalLoss, self).__init__()
         self.gamma = gamma
         self.alpha = alpha
