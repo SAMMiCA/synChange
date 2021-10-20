@@ -41,7 +41,7 @@ if __name__ == "__main__":
                         help='path to directory containing original images for validation')
     parser.add_argument('--snapshots', type=str, default='./snapshots')
     parser.add_argument('--pretrained', dest='pretrained',
-                        default='pre_trained_models/GLUNet_DPED_CityScape_ADE.pth',
+                        # default='pre_trained_models/GLUNet_DPED_CityScape_ADE.pth',
                         help='path to pre-trained model (load only model params)')
     parser.add_argument('--resume', dest='resume',
                        # default='snapshots/2021_10_03_09_27/epoch_8.pth',
@@ -72,7 +72,7 @@ if __name__ == "__main__":
                         help='Pseudo-RNG seed')
     parser.add_argument('--split_ratio', type=float, default=0.99,
                         help='train/val split ratio')
-    parser.add_argument('--split2_ratio', type=float, default=0.001,
+    parser.add_argument('--split2_ratio', type=float, default=0.01,
                         help='val/not-used split ratio (if 0.9, use 90% of val samples)')
     parser.add_argument('--plot_interval', type=int, default=1,
                         help='plot every N iteration in test_epoch')

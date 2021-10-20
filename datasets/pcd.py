@@ -34,7 +34,6 @@ class pcd_5fold(Dataset):
             self.paths['GT'] = [path for path in self.paths['GT'] if int(self.tsunami_or_gsv[path.split('/')[-1]])]
         elif tsunami_or_gsv == 'both':
             pass
-        import pdb; pdb.set_trace()
 
         query_paths, ref_paths = [],[]
         for gtpath in self.paths['GT']:
