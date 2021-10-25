@@ -10,6 +10,7 @@ import albumentations as A
 from natsort import natsorted
 class SegHelper:
     def __init__(self,opt=None,idx2color_path='./datasets/idx2color.txt',num_class=5):
+
         self.opt = opt
         self.num_classes = num_class
         self.idx2color_path = idx2color_path
@@ -207,11 +208,60 @@ class changesim_eval(Dataset):
         return seg_map_class
 
 if __name__ == '__main__':
-    dataset = changesim_eval(root='/media/rit/GLU-CHANGE-SSD500/dataset/ChangeSim',multi_class = True)
+    class ArrayToTensor(object):
+        """Converts a numpy.ndarray (H x W x C) to a torch.FloatTensor of shape (C x H x W)."""
+
+        def __init__(self, get_float=True):
+            self.get_float = get_float
+
+        def __call__(self, array):
+
+            if not isinstance(array, np.ndarray):
+                array = np.array(array)
+            array = np.transpose(array, (2, 0, 1))
+            # handle numpy array
+            tensor = torch.from_numpy(array)
+            # put it from HWC to CHW format
+            if self.get_float:
+                return tensor.float()
+            else:
+                return tensor
+
+    dataset1 = changesim_eval(root='/home/rit/E2EChangeDet/dataset/train_datasets/Query_Seq_Train',
+                             mapname='*',
+                             seqname='Seq_*',
+                              source_image_transform= transforms.Compose([ArrayToTensor(get_float=False)]),
+                                    target_image_transform = transforms.Compose([ArrayToTensor(get_float=False)]),
+    change_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                             )
+    dataset2 = changesim_eval(root='/home/rit/E2EChangeDet/dataset/test_datasets/Query_Seq_Test',
+                             mapname='*',
+                             seqname='Seq_*',
+                              source_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+                              target_image_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+    change_transform=transforms.Compose([ArrayToTensor(get_float=False)]),
+
+                             )
     import matplotlib.pyplot as plt
+    # i=38700
+    # print(len(dataset1))
+    # while i < len(dataset1):
+    #     sample = dataset1[i]
+    #     # plt.subplot(311)
+    #     # plt.imshow(50*sample['target_change'][:,:,0],vmin=0,vmax=255)
+    #     # plt.subplot(312)
+    #     # plt.imshow(sample['source_image'])
+    #     # plt.subplot(313)
+    #     # plt.imshow(sample['target_image'])
+    #     #plt.show()
+    #     # plt.close()
+    #     print(i)
+    #     i+=1
     i=0
-    while(1):
-        sample = dataset[i]
+    print(len(dataset2))
+
+    for d in dataset2:
+        sample = d
         # plt.subplot(311)
         # plt.imshow(50*sample['target_change'][:,:,0],vmin=0,vmax=255)
         # plt.subplot(312)
