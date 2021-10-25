@@ -2,6 +2,7 @@ from datasets.load_pre_made_dataset import PreMadeChangeDataset
 from datasets.vl_cmu_cd import vl_cmu_cd_eval
 from datasets.pcd import gsv_eval, tsunami_eval,pcd_5fold
 from datasets.changesim import changesim_eval
+from datasets.cd2014 import cd2014
 import os
 import torch
 from torch.utils.data import DataLoader
@@ -45,6 +46,15 @@ def prepare_trainval(args,
                                       split= 'train',
                                       img_size = args.train_img_size
                                       )
+    if 'cd2014' in args.trainset_list:
+        train_datasets['cd2014'] =cd2014(root=os.path.join(args.evaluation_data_dir,'CD2014'),
+                                      source_image_transform=source_img_transforms,
+                                      target_image_transform=target_img_transforms,
+                                      change_transform=change_transform,
+                                      split= 'train',
+                                      img_size = args.train_img_size
+                                      )
+
     if 'changesim_normal' in args.trainset_list:
         train_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.training_data_dir,'Query_Seq_Train'),
                                       source_image_transform=source_img_transforms,
@@ -163,7 +173,14 @@ def prepare_test(args,source_img_transforms,target_img_transforms,flow_transform
                                             tsunami_or_gsv='gsv',
                                             img_size=args.test_img_size
                                             )
-
+        elif testset == 'cd2014':
+            test_datasets['cd2014'] = cd2014(root=os.path.join(args.evaluation_data_dir, 'CD2014'),
+                                              source_image_transform=source_img_transforms,
+                                              target_image_transform=target_img_transforms,
+                                              change_transform=change_transform,
+                                              split='test',
+                                              img_size=args.train_img_size
+                                              )
         elif testset == 'changesim_normal':
             test_datasets['changesim_normal'] = changesim_eval(root=os.path.join(args.evaluation_data_dir,'Query_Seq_Test'),
                                           source_image_transform=source_img_transforms,

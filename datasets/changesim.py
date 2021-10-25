@@ -135,9 +135,6 @@ class changesim_eval(Dataset):
         img_t1 = cv2.imread(fn_t1, 1)
         img_t1 = cv2.cvtColor(img_t1,cv2.COLOR_BGR2RGB)
 
-        # w, h, c = img_t0.shape
-        # w_r = 360 # int(256 * max(w / 256, 1))
-        # h_r = 480 # int(256 * max(h / 256, 1))
         h_r, w_r = self.img_size
 
         img_t0_r = cv2.resize(img_t0, (h_r, w_r))
@@ -183,8 +180,8 @@ class changesim_eval(Dataset):
                 # 'source_image_size': (h_r,w_r,3),
                 'flow_map': torch.zeros(2, img_t1_r_.shape[1], img_t1_r_.shape[2]),
                 'correspondence_mask': torch.ones_like(mask_r_.squeeze()).numpy().astype(np.bool),
-                'use_flow': torch.zeros(1),
-                'disable_flow': torch.zeros(1),
+                'use_flow': torch.zeros(1),  # if true, use gt flow map for training with this sample
+                'disable_flow': torch.zeros(1), # if true, disable warping when training with this sample
 
                 }
 
