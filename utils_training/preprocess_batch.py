@@ -9,15 +9,15 @@ def post_process_single_img_data(source_img, target_img, norm='z_score', color_o
         std_values = torch.tensor([0.229, 0.224, 0.225],
                                   dtype=source_img.dtype).view(3, 1, 1)
         image_1 = (source_img.detach().cpu() * std_values +
-                   mean_values).clamp(0, 1).permute(1, 2, 0)*255
+                   mean_values).clamp(0, 1).permute(1, 2, 0) #*255
         image_2 = (target_img.detach().cpu() * std_values +
-                   mean_values).clamp(0, 1).permute(1, 2, 0)*255
+                   mean_values).clamp(0, 1).permute(1, 2, 0) #*255
         return image_1, image_2
 
     elif norm == 'min_max':
-        image_1 = (source_img.detach().cpu().permute(1,2,0)+1) * 128
-        image_2 = (target_img.detach().cpu().permute(1,2,0)+1) * 128
-        return image_1, image_2
+        image_1 = (source_img.detach().cpu().permute(1,2,0)[:,:,[2,1,0]]+1) * 128
+        image_2 = (target_img.detach().cpu().permute(1,2,0)[:,:,[2,1,0]]+1) * 128
+        return image_1/255, image_2/255
 
 
 

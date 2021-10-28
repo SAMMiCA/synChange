@@ -14,9 +14,11 @@ class cd2014(Dataset):
     def __init__(self, root, split='train',
                  source_image_transform=None, target_image_transform=None,
                  change_transform=None,
-                 img_size=(640, 480)
+                 img_size=(640, 480),
+                 downsample=0.1
                  ):
         super(cd2014, self).__init__()
+        self.downsample = downsample
         self.split = split
         if self.split == 'train':
             self.img_txt_path = os.path.join(root,'train.txt')
@@ -26,6 +28,9 @@ class cd2014(Dataset):
         self.img_path = root
         self.label_path = root
         self.img_label_path_pairs = self.get_img_label_path_pairs()
+        if self.downsample < 1.0:
+            split_values = np.random.uniform(0, 1, len(self.img_label_path_pairs)) < self.downsample
+            self.img_label_path_pairs = [pair for pair,split in zip(self.img_label_path_pairs,split_values) if split]
         self.paths = {
             'GT':[path[2] for k, path in self.img_label_path_pairs.items() if 'PTZ' not in path[2]],
             'query': [path[1] for k, path in self.img_label_path_pairs.items() if 'PTZ' not in path[1]],

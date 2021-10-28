@@ -222,27 +222,27 @@ if __name__ == "__main__":
 
 
                 # Validation
-                result = \
-                    validate_epoch(args, model, val_dataloader, device, epoch=epoch,
-                                   save_path=os.path.join(save_path, 'val'),
-                                   writer = val_writer,
-                                   )
-
-                print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
-                print('          Static  |   Change   |   mIoU ')
-                print('          %7.2f %7.2f %7.2f ' %
-                      (result['IoUs'][0], result['IoUs'][-1], result['mIoU']))
-                print(colored('==> ', 'blue') + 'finished epoch :', epoch + 1)
-
-                # save checkpoint for each epoch and a fine called best_model so far
-                is_best = result['f1'] < best_val
-                best_val = min(result['f1'], best_val)
-                save_checkpoint({'epoch': epoch + 1,
-                                 'state_dict': model.module.state_dict(),
-                                 'optimizer': optimizer.state_dict(),
-                                 'scheduler': scheduler.state_dict(),
-                                 'best_loss': best_val},
-                                is_best, save_path, 'epoch_{}.pth'.format(epoch + 1))
+                # result = \
+                #     validate_epoch(args, model, val_dataloader, device, epoch=epoch,
+                #                    save_path=os.path.join(save_path, 'val'),
+                #                    writer = val_writer,
+                #                    )
+                #
+                # print('          F1: {:.2f}, Accuracy: {:.2f} '.format(result['f1'], result['accuracy']))
+                # print('          Static  |   Change   |   mIoU ')
+                # print('          %7.2f %7.2f %7.2f ' %
+                #       (result['IoUs'][0], result['IoUs'][-1], result['mIoU']))
+                # print(colored('==> ', 'blue') + 'finished epoch :', epoch + 1)
+                #
+                # # save checkpoint for each epoch and a fine called best_model so far
+                # is_best = result['f1'] < best_val
+                # best_val = min(result['f1'], best_val)
+                # save_checkpoint({'epoch': epoch + 1,
+                #                  'state_dict': model.module.state_dict(),
+                #                  'optimizer': optimizer.state_dict(),
+                #                  'scheduler': scheduler.state_dict(),
+                #                  'best_loss': best_val},
+                #                 is_best, save_path, 'epoch_{}.pth'.format(epoch + 1))
 
         print(args.seed, 'Training took:', time.time()-train_started, 'seconds')
 

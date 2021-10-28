@@ -216,3 +216,14 @@ def make_color_wheel():
     colorwheel[col:col+MR, 0] = 255
 
     return colorwheel
+
+
+def overlay_result(seg_bool,rgb_numpy,alpha=0.3):
+    red_image = np.zeros_like(rgb_numpy)
+    red_image[:, :, 0] = 230/255
+    red_image[:, :, 1] = 0
+    red_image[:, :, 2] = 126/255
+
+    out = seg_bool.astype(np.float32) * (alpha * rgb_numpy + (1-alpha) * red_image) + \
+                          (1.0 - seg_bool.astype(np.float32)) * rgb_numpy
+    return out

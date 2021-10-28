@@ -4,6 +4,18 @@ import numpy as np
 from utils.io import writeFlow
 import torch.nn as nn
 
+def IoU(conf_matrix):
+    if isinstance(conf_matrix,(torch.FloatTensor,torch.LongTensor)):
+        conf_matrix=conf_matrix.numpy()
+    true_positive = np.diag(conf_matrix)
+    false_positive = np.sum(conf_matrix, 0) - true_positive
+    false_negative = np.sum(conf_matrix, 1) - true_positive
+
+    # Just in case we get a division by 0, ignore/hide the error
+    with np.errstate(divide='ignore', invalid='ignore'):
+        iou = true_positive / (true_positive + false_positive + false_negative)
+
+    return iou, np.nanmean(iou)
 
 def epe(input_flow, target_flow, mean=True):
     """

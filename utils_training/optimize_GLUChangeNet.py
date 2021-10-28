@@ -10,94 +10,8 @@ import torchvision.transforms as tf
 import os
 from torchnet.meter.confusionmeter import ConfusionMeter
 from utils_training.preprocess_batch import pre_process_change,pre_process_data
-
-def IoU(conf_matrix):
-    if isinstance(conf_matrix,(torch.FloatTensor,torch.LongTensor)):
-        conf_matrix=conf_matrix.numpy()
-    true_positive = np.diag(conf_matrix)
-    false_positive = np.sum(conf_matrix, 0) - true_positive
-    false_negative = np.sum(conf_matrix, 1) - true_positive
-
-    # Just in case we get a division by 0, ignore/hide the error
-    with np.errstate(divide='ignore', invalid='ignore'):
-        iou = true_positive / (true_positive + false_positive + false_negative)
-
-    return iou, np.nanmean(iou)
-#
-# def pre_process_data(source_img, target_img, device):
-#     '''
-#     Pre-processes source and target images before passing it to the network
-#     :param source_img: Torch tensor Bx3xHxW
-#     :param target_img: Torch tensor Bx3xHxW
-#     :param device: cpu or gpu
-#     :return:
-#     source_img_copy: Torch tensor Bx3xHxW, source image scaled to 0-1 and mean-centered and normalized
-#                      using mean and standard deviation of ImageNet
-#     target_img_copy: Torch tensor Bx3xHxW, target image scaled to 0-1 and mean-centered and normalized
-#                      using mean and standard deviation of ImageNet
-#     source_img_256: Torch tensor Bx3x256x256, source image rescaled to 256x256, scaled to 0-1 and mean-centered and normalized
-#                     using mean and standard deviation of ImageNet
-#     target_img_256: Torch tensor Bx3x256x256, target image rescaled to 256x256, scaled to 0-1 and mean-centered and normalized
-#                     using mean and standard deviation of ImageNet
-#     '''
-#     # img has shape bx3xhxw
-#     b, _, h_scale, w_scale = target_img.shape
-#     mean_vector = np.array([0.485, 0.456, 0.406])
-#     std_vector = np.array([0.229, 0.224, 0.225])
-#
-#     # original resolution
-#     source_img_copy = source_img.float().to(device).div(255.0)
-#     target_img_copy = target_img.float().to(device).div(255.0)
-#     mean = torch.as_tensor(mean_vector, dtype=source_img_copy.dtype, device=source_img_copy.device)
-#     std = torch.as_tensor(std_vector, dtype=source_img_copy.dtype, device=source_img_copy.device)
-#     source_img_copy.sub_(mean[:, None, None]).div_(std[:, None, None])
-#     target_img_copy.sub_(mean[:, None, None]).div_(std[:, None, None])
-#
-#     # resolution 256x256
-#     source_img_256 = torch.nn.functional.interpolate(input=source_img.float().to(device),
-#                                                       size=(256, 256),
-#                                                       mode='area').byte()
-#     target_img_256 = torch.nn.functional.interpolate(input=target_img.float().to(device),
-#                                                       size=(256, 256),
-#                                                       mode='area').byte()
-#
-#     source_img_256 = source_img_256.float().div(255.0)
-#     target_img_256 = target_img_256.float().div(255.0)
-#     source_img_256.sub_(mean[:, None, None]).div_(std[:, None, None])
-#     target_img_256.sub_(mean[:, None, None]).div_(std[:, None, None])
-#
-#     return source_img_copy, target_img_copy, source_img_256, target_img_256
-#
-# def pre_process_change(source_mask, target_mask, device):
-#     '''
-#     Pre-processes source and target images before passing it to the network
-#     :param source_mask: Torch tensor BxHxW
-#     :param target_mask: Torch tensor BxHxW
-#     :param device: cpu or gpu
-#     :return:
-#     source_img_copy: Torch tensor Bx1xHxW, source image
-#     target_img_copy: Torch tensor Bx1xHxW, target image
-#     source_img_256: Torch tensor Bx1x256x256, source image rescaled to 256x256
-#     target_img_256: Torch tensor Bx1x256x256, target image rescaled to 256x256
-#     '''
-#     # img has shape bxhxw
-#     b, h_scale, w_scale = target_mask.shape
-#     # original resolution
-#     source_img_copy = source_mask.long().to(device)[:,None,...]
-#     target_img_copy = target_mask.long().to(device)[:,None,...]
-#
-#     # resolution 256x256
-#     source_img_256 = torch.nn.functional.interpolate(input=source_mask.float().to(device)[:,None,...],
-#                                                      size=(256, 256),
-#                                                      mode='nearest')
-#     target_img_256 = torch.nn.functional.interpolate(input=target_mask.float().to(device)[:,None,...],
-#                                                      size=(256, 256),
-#                                                      mode='nearest')
-#
-#     source_img_256 = source_img_256.long()
-#     target_img_256 = target_img_256.long()
-#
-#     return source_img_copy, target_img_copy, source_img_256, target_img_256
+from utils.plot import overlay_result
+from utils.evaluate import IoU
 
 def plot_during_training(save_path, epoch, batch, apply_mask,
                          h_original, w_original, h_256, w_256,
@@ -206,6 +120,7 @@ def plot_during_training(save_path, epoch, batch, apply_mask,
         vis_result = imread('{}/epoch{}_batch{}.png'.format(save_path, epoch, batch)).astype(np.uint8)[:,:,:3]
         return vis_result.transpose(2,0,1) # channel first
 
+
 def plot_during_training2(save_path, epoch, batch, apply_mask,
                          h_original, w_original, h_256, w_256,
                          source_image, target_image, source_image_256, target_image_256, div_flow,
@@ -215,7 +130,8 @@ def plot_during_training2(save_path, epoch, batch, apply_mask,
                          out_change_orig,
                          out_change_256,
                          mask=None, mask_256=None,
-                         return_img = False):
+                         return_img = False,
+                         save_split=True):
     # resolution original
     flow_est_original = F.interpolate(output_net, (h_original, w_original),
                                       mode='bilinear', align_corners=False)  # shape Bx2xHxW
@@ -268,30 +184,55 @@ def plot_during_training2(save_path, epoch, batch, apply_mask,
                                         mode='bilinear',align_corners=False)
     out_change_256 = out_change_256[0].argmax(0)
     out_change_256 = 50*out_change_256.cpu().numpy()
-    num_figs=4 if target_change_original is None else 5
-    fig, axis = plt.subplots(1, num_figs, figsize=(20, 10))
-    axis[0].imshow(image_1.numpy())
-    axis[0].set_title("src image")
-    axis[1].imshow(image_2.numpy())
-    axis[1].set_title("tgt image")
-    if apply_mask:
-        mask = mask.detach()[0].cpu().numpy().astype(np.float32)
-    else:
-        mask = np.ones((h_original, w_original))
-    axis[2].imshow(remapped_est)
-    axis[2].set_title("src remapped with network")
 
-    axis[3].imshow(out_change_original,vmax=255,interpolation='nearest')
-    axis[3].set_title("estim. change seg.")
-    if target_change_original is not None:
-        axis[4].imshow(target_change_original,vmax=255,interpolation='nearest')
-        axis[4].set_title("GT change label")
-    fig.savefig('{}/epoch{}_batch{}.png'.format(save_path, epoch, batch),
-                bbox_inches='tight')
-    plt.close(fig)
-    if return_img:
-        vis_result = imread('{}/epoch{}_batch{}.png'.format(save_path, epoch, batch)).astype(np.uint8)[:,:,:3]
-        return vis_result.transpose(2,0,1) # channel first
+
+    if save_split:
+        if not os.path.isdir(os.path.join(save_path,'t0')): os.mkdir(os.path.join(save_path,'t0'))
+        if not os.path.isdir(os.path.join(save_path,'t1')): os.mkdir(os.path.join(save_path,'t1'))
+        if not os.path.isdir(os.path.join(save_path,'pred_on_t1')): os.mkdir(os.path.join(save_path,'pred_on_t1'))
+        if not os.path.isdir(os.path.join(save_path,'pred_on_remapped')): os.mkdir(os.path.join(save_path,'pred_on_remapped'))
+        if not os.path.isdir(os.path.join(save_path,'gt_on_t1')): os.mkdir(os.path.join(save_path,'gt_on_t1'))
+
+        plt.imsave('{}/t0/epoch{}_batch{}.png'.format(save_path, epoch, batch),image_1.numpy())
+        plt.imsave('{}/t1/epoch{}_batch{}.png'.format(save_path, epoch, batch),image_2.numpy())
+
+
+
+        out_change = overlay_result(out_change_original[:,:,None].astype(np.bool8),image_2.numpy())
+        out_change_remapped = overlay_result(out_change_original[:,:,None].astype(np.bool8),remapped_est)
+        target_change_original = overlay_result(target_change_original[:,:,None].bool().numpy(),image_2.numpy())
+        plt.imsave('{}/pred_on_t1/epoch{}_batch{}.png'.format(save_path, epoch, batch),out_change)
+        plt.imsave('{}/pred_on_remapped/epoch{}_batch{}.png'.format(save_path, epoch, batch),out_change_remapped)
+        plt.imsave('{}/gt_on_t1/epoch{}_batch{}.png'.format(save_path, epoch, batch),target_change_original)
+        if return_img:
+            return target_change_original.transpose(2,0,1)
+
+
+    else:
+        num_figs=4 if target_change_original is None else 5
+        fig, axis = plt.subplots(1, num_figs, figsize=(20, 10))
+        axis[0].imshow(image_1.numpy())
+        axis[0].set_title("src image")
+        axis[1].imshow(image_2.numpy())
+        axis[1].set_title("tgt image")
+        if apply_mask:
+            mask = mask.detach()[0].cpu().numpy().astype(np.float32)
+        else:
+            mask = np.ones((h_original, w_original))
+        axis[2].imshow(remapped_est)
+        axis[2].set_title("src remapped with network")
+
+        axis[3].imshow(out_change_original,vmax=255,interpolation='nearest')
+        axis[3].set_title("estim. change seg.")
+        if target_change_original is not None:
+            axis[4].imshow(target_change_original,vmax=255,interpolation='nearest')
+            axis[4].set_title("GT change label")
+        fig.savefig('{}/epoch{}_batch{}.png'.format(save_path, epoch, batch),
+                    bbox_inches='tight')
+        plt.close(fig)
+        if return_img:
+            vis_result = imread('{}/epoch{}_batch{}.png'.format(save_path, epoch, batch)).astype(np.uint8)[:,:,:3]
+            return vis_result.transpose(2,0,1) # channel first
 
 def train_epoch(args, net,
                 optimizer,
@@ -655,7 +596,7 @@ def test_epoch(args, net,
 
 
             if i % plot_interval == 0:
-                vis_img = plot_during_training2(save_path, epoch, i, False,
+                plot_during_training2(save_path, epoch, i, False,
                                                h_original, w_original, h_256, w_256,
                                                source_image, target_image, source_image_256, target_image_256, div_flow,
                                                flow_gt_original, flow_gt_256, output_net=out_flow_orig[-1],
@@ -664,8 +605,7 @@ def test_epoch(args, net,
                                                target_change_256=target_change_256,
                                                out_change_orig=out_change_orig,
                                                out_change_256=out_change_256,
-                                               return_img=True)
-                writer.add_image('val_warping_per_iter', vis_img, n_iter)
+                                               return_img=False)
 
             out_change_orig = torch.nn.functional.interpolate(out_change_orig[-1].detach(),
                                                               size=(h_original, w_original), mode='bilinear')

@@ -68,7 +68,8 @@ class changesim_eval(Dataset):
                  multi_class = False,
                  mapname='*',
                  seqname='Seq_0',
-                 img_size=(640, 480)
+                 img_size=(640, 480),
+                 downsample=0.4
                  ):
           # 파일 생성일
 
@@ -76,6 +77,11 @@ class changesim_eval(Dataset):
 
         self.paths = {'GT':natsorted(glob(pjoin(root,mapname,seqname,'change_segmentation','*.png')))}
         self.paths['GT'] = [fn_mask for fn_mask in self.paths['GT'] if os.path.isfile(fn_mask)]
+        self.downsample=downsample
+        if downsample <1.0:
+            split_values = np.random.uniform(0, 1, len(self.paths['GT'])) < self.downsample
+            self.paths['GT'] = [sample for sample, split in zip(self.paths['GT'], split_values) if split]
+
         query_paths, ref_paths = [],[]
         for gtpath in self.paths['GT']:
             query_path = gtpath.replace('change_segmentation','rgb')

@@ -11,7 +11,8 @@ import os
 from torchnet.meter.confusionmeter import ConfusionMeter
 import torch.nn as nn
 from utils_training.preprocess_batch import pre_process_data, pre_process_change, post_process_single_img_data
-
+from utils.plot import overlay_result
+from utils.evaluate import IoU
 
 class criterion_CEloss(nn.Module):
     def __init__(self,weight=None):
@@ -19,19 +20,6 @@ class criterion_CEloss(nn.Module):
         self.loss = nn.NLLLoss(weight)
     def forward(self,output,target):
         return self.loss(F.log_softmax(output, dim=1), target)
-
-def IoU(conf_matrix):
-    if isinstance(conf_matrix,(torch.FloatTensor,torch.LongTensor)):
-        conf_matrix=conf_matrix.numpy()
-    true_positive = np.diag(conf_matrix)
-    false_positive = np.sum(conf_matrix, 0) - true_positive
-    false_negative = np.sum(conf_matrix, 1) - true_positive
-
-    # Just in case we get a division by 0, ignore/hide the error
-    with np.errstate(divide='ignore', invalid='ignore'):
-        iou = true_positive / (true_positive + false_positive + false_negative)
-
-    return iou, np.nanmean(iou)
 
 def plot_during_training(save_path, epoch, batch, apply_mask,
                          h_original, w_original, h_256, w_256,
@@ -232,8 +220,57 @@ def plot_during_training3(save_path, epoch, batch,
                          source_image, target_image,
                          target_change_original,
                          out_change_orig,
-                         return_img = False):
-    image_1,image_2 = post_process_single_img_data(source_image[0],target_image[0],norm='z_score')
+                         return_img = False,
+                         norm = 'z_score',
+                         save_split=True):
+    image_1,image_2 = post_process_single_img_data(source_image[0],target_image[0],norm=norm)
+
+    if target_change_original is not None:
+        target_change_original = 50*target_change_original[0].cpu().squeeze()
+    out_change_original = F.interpolate(out_change_orig,(h_original, w_original),
+                                        mode='bilinear',align_corners=False)
+    out_change_original = out_change_original[0].argmax(0)
+    out_change_original = 50*out_change_original.cpu().numpy()
+
+
+    if save_split:
+        if not os.path.isdir(os.path.join(save_path,'pred_on_t1')): os.mkdir(os.path.join(save_path,'pred_on_t1'))
+        if not os.path.isdir(os.path.join(save_path,'gt_on_t1')): os.mkdir(os.path.join(save_path,'gt_on_t1'))
+        out_change = overlay_result(out_change_original[:,:,None].astype(np.bool8),image_2.numpy())
+        target_change_original = overlay_result(target_change_original[:,:,None].bool().numpy(),image_2.numpy())
+        plt.imsave('{}/pred_on_t1/epoch{}_batch{}.png'.format(save_path, epoch, batch),out_change)
+        plt.imsave('{}/gt_on_t1/epoch{}_batch{}.png'.format(save_path, epoch, batch),target_change_original)
+        if return_img:
+            return target_change_original.transpose(2,0,1)
+    else:
+        num_figs=4
+        fig, axis = plt.subplots(1, num_figs, figsize=(20, 10))
+        axis[0].imshow(image_1.numpy())
+        axis[0].set_title("src image")
+        axis[1].imshow(image_2.numpy())
+        axis[1].set_title("tgt image")
+
+        axis[2].imshow(out_change_original,vmax=255,interpolation='nearest')
+        axis[2].set_title("estim. change seg.")
+        if target_change_original is not None:
+            axis[3].imshow(target_change_original,vmax=255,interpolation='nearest')
+            axis[3].set_title("GT change label")
+        fig.savefig('{}/epoch{}_batch{}.png'.format(save_path, epoch, batch),
+                    bbox_inches='tight')
+        plt.close(fig)
+        if return_img:
+            vis_result = imread('{}/epoch{}_batch{}.png'.format(save_path, epoch, batch)).astype(np.uint8)[:,:,:3]
+            return vis_result.transpose(2,0,1) # channel first
+
+
+def plot_infer_only(save_path, epoch, batch,
+                         h_original, w_original,
+                         source_image, target_image,
+                         target_change_original,
+                         out_change_orig,
+                         return_img = False,
+                         norm = 'z_score'):
+    image_1,image_2 = post_process_single_img_data(source_image[0],target_image[0],norm=norm)
     # # resolution original
     # mean_values = torch.tensor([0.485, 0.456, 0.406],
     #                            dtype=source_image.dtype).view(3, 1, 1)
@@ -251,18 +288,18 @@ def plot_during_training3(save_path, epoch, batch,
     out_change_original = out_change_original[0].argmax(0)
     out_change_original = 50*out_change_original.cpu().numpy()
 
-    num_figs=4
-    fig, axis = plt.subplots(1, num_figs, figsize=(20, 10))
-    axis[0].imshow(image_1.numpy())
-    axis[0].set_title("src image")
-    axis[1].imshow(image_2.numpy())
-    axis[1].set_title("tgt image")
+    num_figs=1
+    fig, axis = plt.subplots(1, num_figs, figsize=(4, 10))
+    # axis[0].imshow(image_1.numpy())
+    # axis[0].set_title("src image")
+    # axis[1].imshow(image_2.numpy())
+    # axis[1].set_title("tgt image")
 
-    axis[2].imshow(out_change_original,vmax=255,interpolation='nearest')
-    axis[2].set_title("estim. change seg.")
-    if target_change_original is not None:
-        axis[3].imshow(target_change_original,vmax=255,interpolation='nearest')
-        axis[3].set_title("GT change label")
+    axis.imshow(out_change_original,vmax=255,interpolation='nearest')
+    axis.set_title("estim. change seg.")
+    # if target_change_original is not None:
+    #     axis[3].imshow(target_change_original,vmax=255,interpolation='nearest')
+    #     axis[3].set_title("GT change label")
     fig.savefig('{}/epoch{}_batch{}.png'.format(save_path, epoch, batch),
                 bbox_inches='tight')
     plt.close(fig)
@@ -497,10 +534,11 @@ def test_epoch(args, net,
             if i % plot_interval == 0:
                 vis_img = plot_during_training3(save_path, epoch, i,
                                                h_original, w_original,
-                                               mini_batch['source_image'], mini_batch['target_image'],
+                                               source_image, target_image,
                                                target_change_original=target_change,
                                                out_change_orig=out_change_orig,
-                                               return_img=True)
+                                               return_img=True,
+                                               norm = args.img_norm_type)
                 writer.add_image('val_warping_per_iter', vis_img, n_iter)
 
             out_change_orig = torch.nn.functional.interpolate(out_change_orig.detach(),
