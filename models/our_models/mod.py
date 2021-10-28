@@ -204,7 +204,7 @@ def warp(x, flo,disable_flow=None):
 
     """
     if disable_flow is not None:
-        flo = flo * disable_flow
+        flo = flo * (1-disable_flow)
 
     B, C, H, W = x.size()
     # mesh grid

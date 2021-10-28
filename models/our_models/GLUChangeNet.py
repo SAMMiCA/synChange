@@ -538,9 +538,9 @@ class GLUChangeNet_model(nn.Module):
         if self.use_pac:
             aligned_imgs_1 = self.resize_align_images(im_source, im_target, size=(int(h_full / 2.0), int(w_full / 2.0)),
                                                       flow=up_flow2*div*ratio)
-            up_change1 = self.change_deconv2(change1,aligned_imgs_1)
+            up_change1 = self.change_deconv1(change1,aligned_imgs_1)
         else:
-            up_change1= self.change_deconv2(change1)
+            up_change1= self.change_deconv1(change1)
         # up_change1 = self.change_deconv1(change1)
 
         corr1 = self.leakyRELU(corr1)
@@ -561,7 +561,8 @@ class GLUChangeNet_model(nn.Module):
         else:
             return {
                     'flow':([flow4, flow3], [flow2, flow1]),
-                    #'change':([change4,change3],[change2,up_change1])
+                    # 'change':([change4,change3],[change2,up_change1]),
+
                 'change':([up_change4,up_change3],[up_change2,up_change1])
 
             }
