@@ -375,7 +375,7 @@ class GLUChangeNet_model(nn.Module):
     def forward(self, im_target, im_source, im_target_256, im_source_256,disable_flow=None):
         # all indices 1 refer to target images
         # all indices 2 refer to source images
-
+        disable_flow = None
         b, _, h_full, w_full = im_target.size()
         b, _, h_256, w_256 = im_target_256.size()
         div = self.div
@@ -538,7 +538,7 @@ class GLUChangeNet_model(nn.Module):
         if self.use_pac:
             aligned_imgs_1 = self.resize_align_images(im_source, im_target, size=(int(h_full / 2.0), int(w_full / 2.0)),
                                                       flow=up_flow2*div*ratio)
-            up_change1 = self.change_deconv2(change1,aligned_imgs_1)
+            up_change1 = self.change_deconv1(change1,aligned_imgs_1)
         else:
             up_change1= self.change_deconv2(change1)
         # up_change1 = self.change_deconv1(change1)
@@ -561,8 +561,9 @@ class GLUChangeNet_model(nn.Module):
         else:
             return {
                     'flow':([flow4, flow3], [flow2, flow1]),
-                    #'change':([change4,change3],[change2,up_change1])
-                'change':([up_change4,up_change3],[up_change2,up_change1])
+                    'change':([change4,change3],[change2,change1]),
+
+                # 'change':([up_change4,up_change3],[up_change2,up_change1])
 
             }
 
