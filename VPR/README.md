@@ -8,6 +8,8 @@ All codes were modified based on the official codebase of each VPR module.
 
 [A Hierarchical Dual Model of Environment- and Place-Specific Utility for Visual Place Recognition](https://github.com/Nik-V9/HEAPUtil)
 
+For STA-VPR and HEAPUtil, please download the pre-trained models for VPR refer to the above codebases.
+
 ## Patch-NetVLAD & NetVLAD
 
 Run the following command for feature extraction: 
