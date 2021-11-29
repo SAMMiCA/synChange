@@ -12,6 +12,7 @@ import numpy as np
 from tools.datasets import PlaceDataset
 from models.patch_netvlad.models_generic import get_backend, get_model, get_pca_encoding
 from dataloader import ChangeSim
+from patchnetvlad.tools import PATCHNETVLAD_ROOT_DIR
 
 ROOT_DIR = os.getcwd()
 
@@ -121,6 +122,12 @@ if __name__ == "__main__":
 
     # must resume to do extraction
     resume_ckpt = config['global_params']['resumePath'] + config['global_params']['num_pcs'] + '.pth.tar'
+    
+    if not isfile(resume_ckpt):
+        resume_ckpt = join(PATCHNETVLAD_ROOT_DIR, resume_ckpt)
+        if not isfile(resume_ckpt):
+            from download_models import download_all_models
+            download_all_models(ask_for_permission=True)
 
     if os.path.isfile(resume_ckpt):
         print(f"=> loading checkpoint '{resume_ckpt}'")

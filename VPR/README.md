@@ -8,7 +8,8 @@ All codes were modified based on the official codebase of each VPR module.
 
 [A Hierarchical Dual Model of Environment- and Place-Specific Utility for Visual Place Recognition](https://github.com/Nik-V9/HEAPUtil)
 
-For STA-VPR and HEAPUtil, please download the pre-trained models for VPR refer to the above codebases.
+For STA-VPR, please download the pre-trained model for VPR refer to the STA-VPR codebase.
+For HEAPUtil, locate the pre-trained model of Patch-NetVLAD in the 'HEAPUtil/data/NetVLAD/netvlad-checkpoint-cc16/checkpoints' and modify the name as 'model_best.pth.tar'.
 
 ## Patch-NetVLAD & NetVLAD
 
