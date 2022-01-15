@@ -1,4 +1,4 @@
-# GLU-ChangeNet
+# synChange Dataset Generation
 
 # Installation
 
