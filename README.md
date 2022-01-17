@@ -78,3 +78,9 @@ cd ../GLU-ChangeNet-Pytorch
 --name_exp train_synthetic_test_changesim_multiclass \
 --multi_class
 ```
+
+# SynChange Dataset Generation
+```
+python save_change_training_dataset_to_disk.py
+```
+
